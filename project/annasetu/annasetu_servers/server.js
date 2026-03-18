@@ -1,8 +1,10 @@
 const express = require("express");
 const dotenv = require("dotenv");
+
+// Load environment variables early so other modules can read them
+dotenv.config();
+
 const connectDB = require("./config/db");
-const cors = require("cors");
-const path = require("path");
 
 dotenv.config();
 connectDB();

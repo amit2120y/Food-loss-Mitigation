@@ -94,13 +94,34 @@
         const preview = document.getElementById("preview");
         const msg = document.getElementById("imageMsg");
         const form = document.getElementById("foodForm");
+        const donateBtn = form.querySelector('.btn-primary');
+
+        // shared images array accessible to submit handler
+        let imagesData = [];
 
         document.getElementById("uploadBox").onclick = () => upload.click();
+        // Prevent clicks on the native file input from bubbling up to the upload box
+        upload.addEventListener('click', (e) => e.stopPropagation());
 
-        upload.addEventListener("change", () => {
+        // helper to read files as data URLs, returns Promise<string[]>
+        const readFilesAsDataURLs = (files) => {
+            const readers = Array.from(files).map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsDataURL(file);
+                });
+            });
+            return Promise.all(readers);
+        };
+
+        upload.addEventListener("change", async () => {
 
             preview.innerHTML = "";
             const files = upload.files;
+
+            imagesData = []; // reset
 
             if (files.length < 2) {
                 msg.innerHTML = "❌ Minimum 2 images required";
@@ -115,34 +136,73 @@
 
             msg.innerHTML = "✅ Images selected";
 
-            Array.from(files).forEach(file => {
-
-                const reader = new FileReader();
-
-                reader.onload = e => {
+            try {
+                // read all files and render previews
+                imagesData = await readFilesAsDataURLs(files);
+                imagesData.forEach(src => {
                     const img = document.createElement("img");
-                    img.src = e.target.result;
+                    img.src = src;
                     img.classList.add("preview-img");
                     preview.appendChild(img);
-                };
-
-                reader.readAsDataURL(file);
-
-            });
+                });
+            } catch (err) {
+                console.error('Failed to read images', err);
+                msg.innerHTML = '❌ Failed to read images';
+            }
 
         });
 
-        form.addEventListener("submit", (e) => {
+        form.addEventListener("submit", async (e) => {
 
             e.preventDefault();
 
-            if (upload.files.length < 2 || upload.files.length > 4) {
+            const files = upload.files;
+            if (files.length < 2 || files.length > 4) {
                 alert("Upload 2–4 images");
                 return;
             }
 
-            localStorage.setItem("foodAdded", "true");
+            // ensure imagesData is populated (in case user submitted before change handler finished)
+            if (imagesData.length !== files.length) {
+                try {
+                    donateBtn.disabled = true;
+                    donateBtn.textContent = 'Processing...';
+                    imagesData = await readFilesAsDataURLs(files);
+                } catch (err) {
+                    donateBtn.disabled = false;
+                    donateBtn.textContent = 'Donate Food';
+                    alert('Failed to read images');
+                    return;
+                }
+            }
 
+            // gather form values
+            const foodName = document.getElementById('foodName').value || 'Unnamed';
+            const quantity = document.getElementById('quantity').value || '';
+            const cookedTime = document.getElementById('cookedTime').value || '';
+            const foodType = document.getElementById('foodType').value || '';
+            const description = document.getElementById('description').value || '';
+            const location = document.getElementById('location').value || '';
+
+            const donation = {
+                id: 'd_' + Date.now(),
+                food: foodName,
+                qty: quantity,
+                cookedTime,
+                type: foodType,
+                description,
+                location,
+                images: imagesData.slice(),
+                status: 'Available',
+                createdAt: new Date().toISOString()
+            };
+
+            // persist to localStorage (simple local persistence for demo)
+            const existing = JSON.parse(localStorage.getItem('donations') || '[]');
+            existing.unshift(donation);
+            localStorage.setItem('donations', JSON.stringify(existing));
+
+            // redirect back to dashboard where the donation will be rendered
             window.location.href = "dashboard.html";
 
         });

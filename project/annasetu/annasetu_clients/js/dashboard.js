@@ -17,6 +17,31 @@ document.addEventListener('DOMContentLoaded', () => {
     pageTitle.textContent = `Welcome Back, ${user.name}! 👋`;
   }
 
+  // Render donations from localStorage into the table
+  try {
+    const donations = JSON.parse(localStorage.getItem('donations') || '[]');
+    const table = document.querySelector('#donorSection table');
+    if (table && donations.length) {
+      // remove existing sample rows (keep header)
+      const rows = table.querySelectorAll('tr');
+      // remove all rows except the header
+      rows.forEach((r, idx) => { if (idx > 0) r.remove(); });
+
+      donations.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.food}</td>
+          <td>${d.qty}</td>
+          <td><span class="badge available">${d.status}</span></td>
+          <td><button class="btn">Edit</button></td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+  } catch (err) {
+    console.error('Failed to render donations from localStorage', err);
+  }
+
   // Handle logout
   const logoutBtn = document.querySelector('.logout');
   if (logoutBtn) {

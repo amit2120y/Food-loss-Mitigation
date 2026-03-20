@@ -14,6 +14,13 @@ background:#2e7d32;
 color:white;
 }
 
+.logo a{
+    color:white;
+    text-decoration:none;
+    margin-left:0px;
+    font-size:20px;
+}
+
 .navbar nav a{
 color:white;
 text-decoration:none;

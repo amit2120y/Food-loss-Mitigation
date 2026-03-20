@@ -3,9 +3,13 @@ let allDonations = [];
 let filteredDonations = [];
 let selectedDonation = null;
 let currentFilter = 'all';
+let searchTimeout = null; // For debouncing search
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== Browse Page Loaded ===');
+
+  // Initialize modal cache
+  modalCache.init();
 
   // Check authentication
   const token = localStorage.getItem('token');
@@ -25,8 +29,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup filter buttons
   setupFilterButtons();
 
-  // Setup search input
-  document.getElementById('searchInput').addEventListener('input', handleSearch);
+  // Setup search input with debouncing
+  const searchInput = document.getElementById('searchInput');
+  searchInput.addEventListener('input', () => {
+    // Clear previous timeout
+    clearTimeout(searchTimeout);
+    
+    // Show loading indicator while typing
+    searchTimeout = setTimeout(() => {
+      handleSearch();
+    }, 300); // Wait 300ms after user stops typing
+  });
 
   console.log('=== Browse Page Ready ===');
 });
@@ -37,9 +50,17 @@ async function loadDonations() {
     const token = localStorage.getItem('token');
     console.log('Fetching available donations...');
 
-    document.getElementById('loadingState').style.display = 'flex';
-    document.getElementById('donationsGrid').innerHTML = '';
+    // Show loading state
+    const loadingEl = document.getElementById('loadingState');
+    const gridEl = document.getElementById('donationsGrid');
+    const emptyEl = document.getElementById('emptyState');
+    
+    loadingEl.classList.remove('hidden');
+    gridEl.innerHTML = '';
+    emptyEl.classList.add('hidden');
 
+    const startTime = performance.now();
+    
     const response = await fetch('http://localhost:5000/api/donations/available', {
       method: 'GET',
       headers: {
@@ -53,48 +74,91 @@ async function loadDonations() {
     }
 
     const data = await response.json();
-    console.log(`✓ Fetched ${data.donations.length} available donations`);
+    const loadTime = performance.now() - startTime;
+    
+    console.log(`✓ Fetched ${data.donations.length} available donations in ${loadTime.toFixed(2)}ms`);
+    console.log('Sample donation:', data.donations[0]); // Debug: see what data looks like
 
     allDonations = data.donations || [];
     filteredDonations = [...allDonations];
 
+    // Hide loading, show results
+    loadingEl.classList.add('hidden');
     displayDonations(filteredDonations);
-    document.getElementById('loadingState').style.display = 'none';
+    
   } catch (error) {
     console.error('Error loading donations:', error);
-    document.getElementById('loadingState').style.display = 'none';
-    document.getElementById('donationsGrid').innerHTML = `
+    const loadingEl = document.getElementById('loadingState');
+    const gridEl = document.getElementById('donationsGrid');
+    
+    loadingEl.classList.add('hidden');
+    gridEl.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
         <i class="fa fa-exclamation-circle" style="font-size: 40px; margin-bottom: 10px;"></i>
-        <p>Error loading donations. Please try again.</p>
+        <p>Error loading donations: ${error.message}</p>
       </div>
     `;
   }
 }
 
-// Display donations in grid
+// Display donations in grid with optimized rendering
 function displayDonations(donations) {
   const grid = document.getElementById('donationsGrid');
   const emptyState = document.getElementById('emptyState');
 
   if (donations.length === 0) {
     grid.style.display = 'none';
-    emptyState.style.display = 'block';
+    emptyState.classList.remove('hidden');
     return;
   }
 
   grid.style.display = 'grid';
-  emptyState.style.display = 'none';
-  grid.innerHTML = donations.map(donation => createDonationCard(donation)).join('');
+  emptyState.classList.add('hidden');
+  
+  try {
+    // Create all cards at once, then insert
+    const fragment = document.createDocumentFragment();
+    const cards = donations.map(donation => {
+      const div = document.createElement('div');
+      const cardHTML = createDonationCard(donation);
+      div.innerHTML = cardHTML;
+      return div.firstElementChild;
+    }).filter(card => card !== null); // Filter out any null cards
+    
+    cards.forEach(card => fragment.appendChild(card));
+    grid.innerHTML = ''; // Clear
+    grid.appendChild(fragment);
+    
+    console.log(`⚡ Rendered ${donations.length} cards in grid`);
+  } catch (error) {
+    console.error('Error displaying donations:', error);
+    grid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
+        <i class="fa fa-exclamation-circle" style="font-size: 40px; margin-bottom: 10px;"></i>
+        <p>Error rendering donations: ${error.message}</p>
+      </div>
+    `;
+  }
 }
 
 // Create donation card HTML
 function createDonationCard(donation) {
-  const foodIcon = getFoodIcon(donation.foodType);
-  const qualityTag = donation.aiAnalysis ? getQualityTag(donation.aiAnalysis) : '';
-  const donorName = donation.userId?.name || 'Anonymous';
-  const donorLocation = donation.userId?.location || donation.location || 'Unknown';
-  const cookedDate = new Date(donation.cookedTime).toLocaleDateString();
+  try {
+    const foodIcon = getFoodIcon(donation.foodType);
+    const qualityTag = donation.aiAnalysis ? getQualityTag(donation.aiAnalysis) : '';
+    const donorName = donation.userId?.name || 'Anonymous';
+    const donorLocation = donation.userId?.location || donation.location || 'Unknown';
+    
+    // Safe date parsing
+    let cookedDate = 'Unknown Date';
+    if (donation.cookedTime) {
+      try {
+        cookedDate = new Date(donation.cookedTime).toLocaleDateString();
+      } catch (e) {
+        console.warn('Invalid cookedTime:', donation.cookedTime);
+        cookedDate = 'Unknown Date';
+      }
+    }
 
   return `
     <div class="donation-card">
@@ -145,12 +209,20 @@ function createDonationCard(donation) {
           </p>
         ` : ''}
 
-        <button class="request-btn" onclick="openRequestModal('${donation._id}', '${donation.food}', '${donorName}')">
+        <button class="request-btn" onclick="openRequestModal('${donation._id}', '${donation.food.replace(/'/g, "\\'")}', '${donorName.replace(/'/g, "\\'")}')">
           <i class="fa fa-handshake"></i> Request Food
         </button>
       </div>
     </div>
   `;
+  } catch (error) {
+    console.error('Error creating donation card:', error, donation);
+    return `
+      <div class="donation-card" style="opacity: 0.5;">
+        <p style="color: red;">Error loading this donation</p>
+      </div>
+    `;
+  }
 }
 
 // Get food type emoji
@@ -163,18 +235,26 @@ function getFoodIcon(foodType) {
   return icons[foodType] || '🍽️';
 }
 
-// Get quality badge for AI analysis
+// Get quality badge for AI analysis (with caching)
+const qualityTagCache = {};
 function getQualityTag(aiAnalysis) {
   if (!aiAnalysis) return '';
 
+  const cacheKey = `${aiAnalysis.human}`;
+  if (qualityTagCache[cacheKey]) return qualityTagCache[cacheKey];
+
   const human = aiAnalysis.human || 0;
+  let tag = '';
   if (human >= 70) {
-    return '<span class="ai-tag" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">✅ High Quality</span>';
+    tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">✅ High Quality</span>';
   } else if (human >= 40) {
-    return '<span class="ai-tag" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">⚠️ Fair Quality</span>';
+    tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">⚠️ Fair Quality</span>';
   } else {
-    return '<span class="ai-tag" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">❌ Low Quality</span>';
+    tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">❌ Low Quality</span>';
   }
+  
+  qualityTagCache[cacheKey] = tag;
+  return tag;
 }
 
 // Setup filter buttons
@@ -193,31 +273,83 @@ function setupFilterButtons() {
   });
 }
 
-// Handle search input
-function handleSearch(e) {
-  const searchTerm = e.target.value.toLowerCase();
+// Handle search input with debouncing
+function handleSearch() {
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
   applyFiltersAndSearch(searchTerm);
 }
 
-// Apply both filters and search
+// Apply both filters and search with optimized logic
 function applyFiltersAndSearch(searchTerm = '') {
-  filteredDonations = allDonations.filter(donation => {
-    // Filter by type
-    const filterMatch = currentFilter === 'all' || donation.foodType === currentFilter;
+  const startTime = performance.now();
+  
+  // Early exit if search term is empty and filter is 'all'
+  if (!searchTerm && currentFilter === 'all') {
+    filteredDonations = [...allDonations];
+    console.log(`⚡ No filters applied - showing all ${allDonations.length} donations`);
+    displayDonations(filteredDonations);
+    return;
+  }
 
-    // Filter by search term
-    const searchMatch = !searchTerm ||
-      donation.food.toLowerCase().includes(searchTerm) ||
-      donation.location.toLowerCase().includes(searchTerm) ||
-      donation.description.toLowerCase().includes(searchTerm) ||
-      (donation.userId?.name || '').toLowerCase().includes(searchTerm);
+  const searchLower = searchTerm.toLowerCase().trim();
+  
+  // Pre-compile filter function for reuse
+  const filterFunc = (donation) => {
+    // Filter by type first (faster check)
+    if (currentFilter !== 'all' && donation.foodType !== currentFilter) {
+      return false;
+    }
 
-    return filterMatch && searchMatch;
-  });
+    // If no search term, we're done
+    if (!searchLower) return true;
 
-  console.log(`📊 Filtered to ${filteredDonations.length} donations`);
+    // Search across multiple fields with early exit
+    const food = donation.food?.toLowerCase() || '';
+    if (food.includes(searchLower)) return true;
+
+    const location = donation.location?.toLowerCase() || '';
+    if (location.includes(searchLower)) return true;
+
+    const description = donation.description?.toLowerCase() || '';
+    if (description.includes(searchLower)) return true;
+
+    const donor = donation.userId?.name?.toLowerCase() || '';
+    if (donor.includes(searchLower)) return true;
+
+    return false;
+  };
+
+  filteredDonations = allDonations.filter(filterFunc);
+
+  const filterTime = performance.now() - startTime;
+  console.log(`⚡ Filtered ${currentFilter !== 'all' ? `by ${currentFilter}` : ''} ${searchLower ? `+ search "${searchLower}"` : ''} → ${filteredDonations.length}/${allDonations.length} donations in ${filterTime.toFixed(2)}ms`);
   displayDonations(filteredDonations);
 }
+
+// Cache DOM elements for better performance
+const modalCache = {
+  modal: null,
+  form: null,
+  details: null,
+  
+  init() {
+    this.modal = document.getElementById('requestModal');
+    this.form = document.getElementById('requestForm');
+    this.details = document.getElementById('donationDetails');
+  },
+  
+  show() {
+    if (!this.modal) return;
+    this.modal.classList.remove('hidden');
+    this.modal.style.display = 'flex';
+  },
+  
+  hide() {
+    if (!this.modal) return;
+    this.modal.classList.add('hidden');
+    this.modal.style.display = 'none';
+  }
+};
 
 // Open request modal
 function openRequestModal(donationId, foodName, donorName) {
@@ -227,27 +359,29 @@ function openRequestModal(donationId, foodName, donorName) {
     donor: donorName
   };
 
-  // Populate donation details in modal
-  const detailsDiv = document.getElementById('donationDetails');
-  detailsDiv.innerHTML = `
+  // Populate donation details in modal - with sanitization
+  const sanitizedFood = String(foodName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const sanitizedDonor = String(donorName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  
+  modalCache.details.innerHTML = `
     <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">
-      🍽️ <strong>${foodName}</strong>
+      🍽️ <strong>${sanitizedFood}</strong>
     </div>
     <div style="font-size: 13px; color: #666;">
-      From: <strong>${donorName}</strong>
+      From: <strong>${sanitizedDonor}</strong>
     </div>
   `;
 
   // Show modal
-  document.getElementById('requestModal').style.display = 'flex';
-  document.getElementById('requestForm').reset();
+  modalCache.show();
+  modalCache.form.reset();
 
   console.log(`Modal opened for donation: ${donationId}`);
 }
 
 // Close modal
 function closeModal() {
-  document.getElementById('requestModal').style.display = 'none';
+  modalCache.hide();
   selectedDonation = null;
 }
 

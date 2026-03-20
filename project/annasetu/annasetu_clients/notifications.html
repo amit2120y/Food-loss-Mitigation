@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - Annasetu</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        .notifications-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .notifications-header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 15px;
+        }
+
+        .notifications-header h1 {
+            color: #1b5e20;
+            margin: 0 0 10px 0;
+        }
+
+        .notification-item {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2e7d32;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .notification-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-content h3 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .notification-content p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .notification-time {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state i {
+            font-size: 60px;
+            color: #ddd;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .empty-state p {
+            color: #999;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2 class="logo">अन्न-𝙎𝙚𝙩𝙪🌾</h2>
+
+            <nav>
+                <a href="dashboard.html" class="nav-link"><i class="fa fa-home"></i> Dashboard</a>
+                <a href="addfood.html" class="nav-link"><i class="fa fa-plus-circle"></i> Add Food</a>
+                <a href="browse.html" class="nav-link"><i class="fa fa-utensils"></i> Browse Food</a>
+                <a href="notifications.html" class="nav-link active"><i class="fa fa-bell"></i> Notifications</a>
+                <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
+                <a href="index.html" class="nav-link logout"
+                    onclick="localStorage.removeItem('token');localStorage.removeItem('user');">
+                    <i class="fa fa-sign-out-alt"></i> Logout</a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="notifications-container">
+                <div class="notifications-header">
+                    <h1><i class="fas fa-bell"></i> Notifications</h1>
+                    <p>You're all caught up!</p>
+                </div>
+
+                <div id="notificationsContainer">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>No notifications yet</p>
+                        <p style="font-size: 13px; margin-top: 10px;">You'll receive notifications here about your
+                            donations and requests</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/notifications.js"></script>
+</body>
+
+</html>

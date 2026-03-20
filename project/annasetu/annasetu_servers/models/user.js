@@ -15,6 +15,8 @@ unique: true
 
 phone: String,
 
+location: String,
+
 password: {
 type: String,
 required: false

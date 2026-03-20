@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browse Food | Annasetu</title>
+    <link rel="stylesheet" href="css/dashboard.css" />
+    <link rel="stylesheet" href="css/browse.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body>
+    <div class="dashboard">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h2 class="logo">अन्न-𝙎𝙚𝙩𝙪🌾</h2>
+            <nav>
+                <a href="dashboard.html" class="nav-link"><i class="fa fa-home"></i> Dashboard</a>
+                <a href="addfood.html" class="nav-link"><i class="fa fa-plus-circle"></i> Add Food</a>
+                <a href="browse.html" class="nav-link active"><i class="fa fa-utensils"></i> Browse Food</a>
+                <a href="#" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
+                <a href="#" class="nav-link"><i class="fa fa-user"></i> Profile</a>
+                <a href="index.html" class="nav-link logout"
+                    onclick="localStorage.removeItem('token');localStorage.removeItem('user');">
+                    <i class="fa fa-sign-out-alt"></i> Logout</a>
+            </nav>
+        </div>
+
+        <!-- MAIN -->
+        <div class="main-content">
+            <!-- HEADER -->
+            <div class="header">
+                <h2 id="pageTitle">🥗 Browse Available Food</h2>
+            </div>
+
+            <!-- FILTERS & SEARCH -->
+            <div class="filters-section">
+                <div class="search-box">
+                    <i class="fa fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search by food name or location...">
+                </div>
+
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">
+                        <i class="fa fa-list"></i> All
+                    </button>
+                    <button class="filter-btn" data-filter="Vegetarian">
+                        <i class="fa fa-leaf"></i> Vegetarian
+                    </button>
+                    <button class="filter-btn" data-filter="Non-Veg">
+                        <i class="fa fa-drumstick-bite"></i> Non-Veg
+                    </button>
+                    <button class="filter-btn" data-filter="Vegan">
+                        <i class="fa fa-carrot"></i> Vegan
+                    </button>
+                </div>
+            </div>
+
+            <!-- LOADING STATE -->
+            <div id="loadingState" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading available food...</p>
+            </div>
+
+            <!-- DONATIONS GRID -->
+            <div id="donationsGrid" class="donations-grid">
+                <!-- Populated by JavaScript -->
+            </div>
+
+            <!-- EMPTY STATE -->
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <i class="fa fa-inbox"></i>
+                <h3>No Food Available</h3>
+                <p>There are no available donations at the moment.</p>
+                <p>Check back later or <a href="addfood.html">donate food</a> yourself!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- REQUEST/CLAIM MODAL -->
+    <div id="requestModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Request Food</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div id="donationDetails"></div>
+
+                <form id="requestForm">
+                    <div class="form-group">
+                        <label for="quantity">Quantity Needed:</label>
+                        <input type="text" id="quantity" placeholder="e.g., 2 plates, 1 kg" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="message">Message to Donor:</label>
+                        <textarea id="message" rows="4"
+                            placeholder="Tell them why you need this food (optional)"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Your Phone Number:</label>
+                        <input type="tel" id="phone" placeholder="Your contact number" required>
+                    </div>
+
+                    <button type="submit" class="btn-submit">Send Request</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/browse.js"></script>
+</body>
+
+</html>

@@ -17,7 +17,25 @@ phone: String,
 
 password: {
 type: String,
-required: true
+required: false
+},
+
+// Google OAuth fields
+googleId: {
+type: String,
+unique: true,
+sparse: true
+},
+
+googleEmail: String,
+googleName: String,
+googleProfilePicture: String,
+
+// Authentication method
+authMethod: {
+type: String,
+enum: ['email', 'google'],
+default: 'email'
 },
 
 createdAt: {

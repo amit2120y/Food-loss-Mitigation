@@ -46,6 +46,43 @@ The `.env` file is already created. Update it with your values:
 MONGO_URI=mongodb://localhost:27017/annasetu
 JWT_SECRET=your_jwt_secret_key_change_this_in_production
 PORT=5000
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+GOOGLE_CALLBACK_URL=http://localhost:5000/api/auth/google/callback
+```
+
+### Step 2a: Setup Google OAuth (Optional)
+
+#### Get Google OAuth Credentials:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the **Google+ API**
+4. Go to **Credentials** → **Create OAuth 2.0 Client ID**
+   - Choose **Web Application**
+   - Add **Authorized JavaScript origins**:
+     - `http://localhost:5000`
+     - `http://localhost:3000`
+   - Add **Authorized redirect URIs**:
+     - `http://localhost:5000/api/auth/google/callback`
+5. Copy the **Client ID** and **Client Secret**
+
+#### Update .env:
+Replace the placeholders with your actual Google credentials:
+```env
+GOOGLE_CLIENT_ID=your_client_id_from_google_console.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your_client_secret_from_google_console
+GOOGLE_CALLBACK_URL=http://localhost:5000/api/auth/google/callback
+```
+
+#### Update login.html (Optional - for Google Sign-In Widget):
+If you want to use Google's official sign-in widget, update the `data-client_id` in login.html:
+```html
+<div id="g_id_onload"
+     data-client_id="YOUR_GOOGLE_CLIENT_ID"
+     data-callback="handleCredentialResponse">
+</div>
 ```
 
 **For MongoDB**:

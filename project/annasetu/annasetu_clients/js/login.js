@@ -1,6 +1,53 @@
+// Check for token in URL (from Google OAuth redirect)
+function checkForGoogleToken() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  const userId = urlParams.get('userId');
+  const userName = urlParams.get('userName');
+  const userEmail = urlParams.get('userEmail');
+
+  console.log('=== Checking for Google Token ===');
+  console.log('Token:', token ? '✓ Found' : '✗ Not found');
+  console.log('URL Params:', { token: !!token, userId, userName, userEmail });
+
+  if (token && userId && userName && userEmail) {
+    console.log('✓ All credentials found, storing and redirecting...');
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify({
+      id: userId,
+      name: decodeURIComponent(userName),
+      email: decodeURIComponent(userEmail)
+    }));
+    
+    // Clear the URL parameters
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    // Redirect to dashboard
+    console.log('Redirecting to dashboard...');
+    window.location.href = 'dashboard.html';
+    return true;
+  }
+  console.log('=== No valid token found ===');
+  return false;
+}
+
+// Google OAuth callback handler
+function handleCredentialResponse(response) {
+  console.log("Google Sign-In successful");
+  const token = response.credential;
+  
+  // Redirect to the Google auth callback
+  window.location.href = `http://localhost:5000/api/auth/google/callback?token=${token}`;
+}
+
 // Login Form Handler
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Login page loaded');
+  
+  // Check for Google token on page load FIRST
+  if (checkForGoogleToken()) {
+    return; // Exit if token was found and we're redirecting
+  }
   
   const loginForm = document.querySelector('form');
   console.log('Form found:', !!loginForm);
@@ -48,6 +95,14 @@ document.addEventListener('DOMContentLoaded', () => {
           // Store token in localStorage
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
+          
+          // Migrate old global donations to user-specific key if they exist
+          const oldDonations = localStorage.getItem('donations');
+          if (oldDonations) {
+            const userDonationsKey = `donations_${data.user.id}`;
+            localStorage.setItem(userDonationsKey, oldDonations);
+            localStorage.removeItem('donations');
+          }
 
           alert('Login successful! Redirecting to dashboard...');
           window.location.href = 'dashboard.html';
@@ -63,3 +118,4 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('Form not found on page');
   }
 });
+

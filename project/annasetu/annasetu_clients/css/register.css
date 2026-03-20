@@ -98,12 +98,105 @@ color:white;
 border:none;
 border-radius:8px;
 font-size:16px;
+font-weight:600;
 cursor:pointer;
-transition:0.3s;
+transition:all 0.3s ease;
+box-shadow: 0 2px 4px rgba(46, 125, 50, 0.2);
+margin-bottom:15px;
 }
 
 .register-btn:hover{
 background:#1b5e20;
+box-shadow: 0 4px 8px rgba(46, 125, 50, 0.3);
+transform: translateY(-2px);
+}
+
+.register-btn:active{
+transform: translateY(0);
+box-shadow: 0 1px 2px rgba(46, 125, 50, 0.2);
+}
+
+/* Google OAuth Styles - Divider */
+.divider{
+display:flex;
+align-items:center;
+margin:20px 0;
+color:#999;
+}
+
+.divider::before,
+.divider::after{
+content:'';
+flex:1;
+height:1px;
+background:#ddd;
+}
+
+.divider::before{
+margin-right:15px;
+}
+
+.divider::after{
+margin-left:15px;
+}
+
+.divider span{
+font-size:12px;
+font-weight:600;
+text-transform:uppercase;
+letter-spacing:0.5px;
+}
+
+/* Google Sign-In Primary Button */
+.google-btn-primary{
+display:flex;
+align-items:center;
+justify-content:center;
+width:100%;
+padding:14px;
+background:#fff;
+color:#333;
+border:2px solid #e0e0e0;
+border-radius:8px;
+font-size:16px;
+font-weight:600;
+cursor:pointer;
+transition:all 0.3s ease;
+text-decoration:none;
+margin-bottom:15px;
+gap:10px;
+}
+
+.google-btn-primary:hover{
+background:#f9f9f9;
+border-color:#2e7d32;
+box-shadow: 0 4px 12px rgba(46, 125, 50, 0.15);
+transform: translateY(-2px);
+}
+
+.google-btn-primary:active{
+transform: translateY(0);
+box-shadow: 0 2px 6px rgba(46, 125, 50, 0.1);
+}
+
+.google-icon{
+width:24px;
+height:24px;
+flex-shrink:0;
+}
+
+.divider-small{
+display:flex;
+align-items:center;
+margin:15px 0;
+color:#999;
+font-size:13px;
+text-align:center;
+justify-content:center;
+}
+
+.email-register{
+margin-top:0;
 }
 
 .links{

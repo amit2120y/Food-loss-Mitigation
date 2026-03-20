@@ -1,13 +1,17 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const cors = require("cors");
+const path = require("path");
+const passport = require("passport");
+const session = require("express-session");
 
 // Load environment variables early so other modules can read them
 dotenv.config();
 
-const connectDB = require("./config/db");
+// Configure Passport (must be after dotenv.config())
+require("./config/passport");
 
-dotenv.config();
-connectDB();
+const connectDB = require("./config/db");
 
 const app = express();
 
@@ -20,6 +24,22 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+// Session middleware for Passport
+app.use(session({
+  secret: process.env.JWT_SECRET || "your_session_secret",
+  resave: false,
+  saveUninitialized: true,
+  cookie: { 
+    secure: false, // Set to true in production with HTTPS
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Passport initialization
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Request logging middleware
 app.use((req, res, next) => {

@@ -1,0 +1,79 @@
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const User = require("../models/user");
+
+// Debug: Check if credentials are loaded
+console.log("=== Passport Configuration ===");
+console.log("Google Client ID:", process.env.GOOGLE_CLIENT_ID ? "✓ Loaded" : "✗ NOT LOADED");
+console.log("Google Client Secret:", process.env.GOOGLE_CLIENT_SECRET ? "✓ Loaded" : "✗ NOT LOADED");
+console.log("Google Callback URL:", process.env.GOOGLE_CALLBACK_URL);
+console.log("==============================\n");
+
+// Serialize user for session
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+// Deserialize user from session
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (error) {
+    done(error, null);
+  }
+});
+
+// Google OAuth Strategy
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        // Check if user already exists
+        let user = await User.findOne({ googleId: profile.id });
+
+        if (user) {
+          return done(null, user);
+        }
+
+        // Check if user exists by email
+        user = await User.findOne({ email: profile.emails[0].value });
+
+        if (user) {
+          // Update existing user with Google info
+          user = await User.findByIdAndUpdate(
+            user._id,
+            {
+              googleId: profile.id,
+              googleName: profile.displayName,
+              googleEmail: profile.emails[0].value,
+              googleProfilePicture: profile.photos[0]?.value,
+              authMethod: 'google'
+            },
+            { new: true }
+          );
+        } else {
+          // Create new user
+          user = await User.create({
+            name: profile.displayName,
+            email: profile.emails[0].value,
+            googleId: profile.id,
+            googleName: profile.displayName,
+            googleEmail: profile.emails[0].value,
+            googleProfilePicture: profile.photos[0]?.value,
+            authMethod: 'google'
+          });
+        }
+
+        return done(null, user);
+      } catch (error) {
+        return done(error, null);
+      }
+    }
+  )
+);

@@ -197,10 +197,12 @@
                 createdAt: new Date().toISOString()
             };
 
-            // persist to localStorage (simple local persistence for demo)
-            const existing = JSON.parse(localStorage.getItem('donations') || '[]');
+            // persist to localStorage with user-specific key
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const userDonationsKey = `donations_${user.id}`;
+            const existing = JSON.parse(localStorage.getItem(userDonationsKey) || '[]');
             existing.unshift(donation);
-            localStorage.setItem('donations', JSON.stringify(existing));
+            localStorage.setItem(userDonationsKey, JSON.stringify(existing));
 
             // redirect back to dashboard where the donation will be rendered
             window.location.href = "dashboard.html";

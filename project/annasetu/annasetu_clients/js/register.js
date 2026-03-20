@@ -1,6 +1,44 @@
+// Check for token in URL (from Google OAuth redirect)
+function checkForGoogleToken() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  const userId = urlParams.get('userId');
+  const userName = urlParams.get('userName');
+  const userEmail = urlParams.get('userEmail');
+
+  console.log('=== Checking for Google Token (Register Page) ===');
+  console.log('Token:', token ? '✓ Found' : '✗ Not found');
+  console.log('URL Params:', { token: !!token, userId, userName, userEmail });
+
+  if (token && userId && userName && userEmail) {
+    console.log('✓ All credentials found, storing and redirecting...');
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify({
+      id: userId,
+      name: decodeURIComponent(userName),
+      email: decodeURIComponent(userEmail)
+    }));
+    
+    // Clear the URL parameters
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    // Redirect to dashboard
+    console.log('Redirecting to dashboard...');
+    window.location.href = 'dashboard.html';
+    return true;
+  }
+  console.log('=== No valid token found ===');
+  return false;
+}
+
 // Register Form Handler
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Register page loaded');
+  
+  // Check for Google token on page load FIRST
+  if (checkForGoogleToken()) {
+    return; // Exit if token was found and we're redirecting
+  }
   
   const registerForm = document.querySelector('form');
   console.log('Form found:', !!registerForm);
@@ -60,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Response data:', data);
 
         if (response.ok) {
-          alert('Registration successful! Redirecting to login...');
+          alert('Registration successful! Please login with your credentials.');
           window.location.href = 'login.html';
         } else {
           alert(data.message || 'Registration failed, please try again');

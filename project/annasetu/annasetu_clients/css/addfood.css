@@ -98,6 +98,154 @@ textarea {
   display: block;
 }
 
+/* AI ANALYSIS SECTION */
+.ai-section {
+  margin: 25px 0;
+  text-align: center;
+}
+
+.btn-ai {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-ai:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-ai:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-ai i {
+  font-size: 16px;
+}
+
+/* AI LOADING */
+.ai-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  color: #667eea;
+}
+
+.spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* AI RESULTS */
+.ai-results {
+  background: linear-gradient(135deg, #f5f7ff 0%, #f0f4ff 100%);
+  border: 2px solid #667eea;
+  border-radius: 14px;
+  padding: 25px;
+  margin: 25px 0;
+}
+
+.ai-results h3 {
+  color: #667eea;
+  font-size: 18px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.result-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.result-card {
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  text-align: center;
+  border-left: 4px solid;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.result-card.human {
+  border-left-color: #4caf50;
+}
+
+.result-card.cattle {
+  border-left-color: #ff9800;
+}
+
+.result-card.fertilizer {
+  border-left-color: #2196f3;
+}
+
+.result-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.result-card h4 {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.result-card p {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+  font-weight: 500;
+}
+
+.ai-recommendation {
+  background: white;
+  border-left: 4px solid #667eea;
+  padding: 12px;
+  border-radius: 8px;
+  color: #333;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .result-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  textarea,
+  #location {
+    grid-column: span 1;
+  }
+}
+
 /* MESSAGE */
 #imageMsg {
   font-size: 13px;

@@ -6,7 +6,8 @@ const passport = require("passport");
 const session = require("express-session");
 
 // Load environment variables early so other modules can read them
-dotenv.config();
+// Explicitly specify the path to .env file (relative to this file's parent directory)
+dotenv.config({ path: path.join(__dirname, "../.env") });
 
 // Configure Passport (must be after dotenv.config())
 require("./config/passport");
@@ -16,8 +17,8 @@ const connectDB = require("./config/db");
 const app = express();
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cors({
   origin: ["http://localhost:5000", "http://localhost:3000", "http://127.0.0.1:5000", "http://127.0.0.1:5500", "http://localhost:5500", "*"],
   credentials: true,
@@ -52,6 +53,7 @@ app.use(express.static(path.join(__dirname, "../annasetu_clients")));
 
 // Routes
 app.use("/api/auth", require("./routes/authroutes"));
+app.use("/api/donations", require("./routes/donationroutes"));
 
 // Serve frontend files - catch all remaining routes
 app.get(/.*/, (req, res) => {

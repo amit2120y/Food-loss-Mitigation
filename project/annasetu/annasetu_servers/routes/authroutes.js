@@ -6,7 +6,9 @@ const {
 registerUser,
 loginUser,
 googleCallback,
-getGoogleLoginSuccess
+getGoogleLoginSuccess,
+getUserStats,
+analyzeFoodWithAI
 } = require("../controllers/authcontrollers");
 
 router.post("/register", registerUser);
@@ -244,5 +246,7 @@ async function handleGoogleOAuthCode(code, res) {
 }
 
 router.get("/google/login-success", getGoogleLoginSuccess);
+router.get("/user-stats", getUserStats);
+router.post("/analyze-food", analyzeFoodWithAI);
 
 module.exports = router;

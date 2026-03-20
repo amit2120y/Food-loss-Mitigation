@@ -22,14 +22,18 @@
 
         <!-- SIDEBAR -->
         <div class="sidebar">
-            <h2 class="logo">🌾 Annasetu</h2>
+            <h2 class="logo">अन्न-𝙎𝙚𝙩𝙪🌾</h2>
 
-            <a href="dashboard.html" class="nav-link">Dashboard</a>
-            <a href="addfood.html" class="nav-link active">Add Food</a>
-            <a href="#" class="nav-link">Notifications</a>
-            <a href="#" class="nav-link">Profile</a>
-            <a href="index.html" class="nav-link logout"
-                onclick="localStorage.removeItem('token');localStorage.removeItem('user');">Logout</a>
+            <nav>
+                <a href="dashboard.html" class="nav-link"><i class="fa fa-home"></i> Dashboard</a>
+                <a href="addfood.html" class="nav-link active"><i class="fa fa-plus-circle"></i> Add Food</a>
+                <a href="#" class="nav-link"><i class="fa fa-utensils"></i> Browse Food</a>
+                <a href="#" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
+                <a href="#" class="nav-link"><i class="fa fa-user"></i> Profile</a>
+                <a href="index.html" class="nav-link logout"
+                    onclick="localStorage.removeItem('token');localStorage.removeItem('user');">
+                    <i class="fa fa-sign-out-alt"></i> Logout</a>
+            </nav>
         </div>
 
         <!-- MAIN -->
@@ -63,7 +67,8 @@
                     <!-- FULL WIDTH -->
                     <div class="form-grid">
 
-                        <textarea id="description" placeholder="Description..."></textarea>
+                        <textarea id="description"
+                            placeholder="Description... (e.g., Fresh cooked rice, Old moldy bread, Vegetables)"></textarea>
                         <input type="text" id="location" placeholder="Pickup Location" required>
 
                     </div>
@@ -78,6 +83,49 @@
                     <div id="imageMsg"></div>
 
                     <div class="preview" id="preview"></div>
+
+                    <!-- AI ANALYSIS BUTTON -->
+                    <div style="text-align: center; margin: 20px 0;">
+                        <button type="button" id="aiAnalyzeBtn" class="btn-ai">
+                            <i class="fa fa-brain"></i> Analyze with AI
+                        </button>
+                        <div id="aiLoading" class="ai-loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Analyzing description...</p>
+                        </div>
+                    </div>
+
+                    <!-- AI RESULTS -->
+                    <div id="aiResults" class="ai-results" style="display: none;">
+                        <h3>🤖 AI Analysis Results</h3>
+                        <div id="analyzedItem"
+                            style="background: #f0f4ff; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; border-left: 4px solid #667eea;">
+                        </div>
+                        <div class="result-cards">
+                            <div class="result-card human">
+                                <div class="result-icon">👥</div>
+                                <div class="result-content">
+                                    <h4>Human Consumption</h4>
+                                    <p id="humanResult">-</p>
+                                </div>
+                            </div>
+                            <div class="result-card cattle">
+                                <div class="result-icon">🐄</div>
+                                <div class="result-content">
+                                    <h4>Animal Feed</h4>
+                                    <p id="cattleResult">-</p>
+                                </div>
+                            </div>
+                            <div class="result-card fertilizer">
+                                <div class="result-icon">🌱</div>
+                                <div class="result-content">
+                                    <h4>Fertilizer</h4>
+                                    <p id="fertilizerResult">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="ai-recommendation" id="aiRecommendation"></p>
+                    </div>
 
                     <button type="submit" class="btn-primary">Donate Food</button>
 
@@ -185,28 +233,138 @@
             const location = document.getElementById('location').value || '';
 
             const donation = {
-                id: 'd_' + Date.now(),
                 food: foodName,
-                qty: quantity,
-                cookedTime,
-                type: foodType,
+                quantity,
+                foodType,
                 description,
                 location,
-                images: imagesData.slice(),
-                status: 'Available',
-                createdAt: new Date().toISOString()
+                cookedTime,
+                images: imagesData.slice()
             };
 
-            // persist to localStorage with user-specific key
+            // Save to database instead of localStorage
+            const token = localStorage.getItem('token');
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            const userDonationsKey = `donations_${user.id}`;
-            const existing = JSON.parse(localStorage.getItem(userDonationsKey) || '[]');
-            existing.unshift(donation);
-            localStorage.setItem(userDonationsKey, JSON.stringify(existing));
 
-            // redirect back to dashboard where the donation will be rendered
-            window.location.href = "dashboard.html";
+            try {
+                donateBtn.disabled = true;
+                donateBtn.textContent = 'Saving...';
 
+                const response = await fetch('http://localhost:5000/api/donations/create', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(donation)
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    // Response is not valid JSON - likely HTML error page
+                    const text = await response.text();
+                    console.error('Invalid JSON response:', text);
+                    alert('Server error: Response is not valid JSON.\nPlease check browser console for details.\nStatus: ' + response.status);
+                    donateBtn.disabled = false;
+                    donateBtn.textContent = 'Donate Food';
+                    return;
+                }
+
+                console.log('Donation API Response:', data);
+
+                if (response.ok) {
+                    alert('✅ Donation saved successfully!');
+                    window.location.href = "dashboard.html";
+                } else {
+                    alert('Error saving donation: ' + (data.message || 'Unknown error'));
+                    donateBtn.disabled = false;
+                    donateBtn.textContent = 'Donate Food';
+                }
+            } catch (error) {
+                console.error('Error saving donation:', error);
+                alert('Error: ' + error.message);
+                donateBtn.disabled = false;
+                donateBtn.textContent = 'Donate Food';
+            }
+
+        });
+
+        // AI ANALYSIS HANDLER
+        document.getElementById("aiAnalyzeBtn").addEventListener("click", async (e) => {
+            e.preventDefault();
+
+            const description = document.getElementById("description").value.trim();
+            const aiBtn = document.getElementById("aiAnalyzeBtn");
+            const aiLoading = document.getElementById("aiLoading");
+            const aiResults = document.getElementById("aiResults");
+            const token = localStorage.getItem('token');
+
+            // Check if description is provided
+            if (!description && imagesData.length === 0) {
+                alert("Please either:\n1. Write a description of the food, OR\n2. Upload 2-4 images");
+                return;
+            }
+
+            // Show loading
+            aiBtn.disabled = true;
+            aiLoading.style.display = "flex";
+            aiResults.style.display = "none";
+
+            try {
+                let analysisPayload = {};
+
+                // If description provided, use that
+                if (description) {
+                    console.log("Starting AI analysis with description");
+                    analysisPayload.description = description;
+                } else {
+                    console.log("Starting AI analysis with", imagesData.length, "images");
+                    analysisPayload.images = imagesData.slice(0, 2); // Send first 2 images
+                }
+
+                // Send to backend for analysis
+                const response = await fetch('http://localhost:5000/api/auth/analyze-food', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(analysisPayload)
+                });
+
+                const data = await response.json();
+                console.log("AI Response:", data);
+
+                if (response.ok && data.analysis) {
+                    const analysis = data.analysis;
+
+                    // Show what was analyzed
+                    if (description) {
+                        document.getElementById("analyzedItem").innerHTML = `<strong>Food Description:</strong> "${description}"`;
+                    } else {
+                        document.getElementById("analyzedItem").innerHTML = `<strong>Images Analyzed:</strong> ${imagesData.length} images provided`;
+                    }
+
+                    // Display results
+                    document.getElementById("humanResult").textContent = `${analysis.human}% suitable`;
+                    document.getElementById("cattleResult").textContent = `${analysis.cattle}% suitable`;
+                    document.getElementById("fertilizerResult").textContent = `${analysis.fertilizer}% suitable`;
+                    document.getElementById("aiRecommendation").textContent = analysis.recommendation;
+
+                    aiResults.style.display = "block";
+                    console.log("✓ AI analysis complete");
+                } else {
+                    alert("AI analysis failed: " + (data.message || "Unknown error"));
+                }
+            } catch (error) {
+                console.error("AI Analysis Error:", error);
+                alert("Error analyzing: " + error.message);
+            } finally {
+                aiBtn.disabled = false;
+                aiLoading.style.display = "none";
+            }
         });
 
     </script>

@@ -38,6 +38,17 @@ enum: ['email', 'google'],
 default: 'email'
 },
 
+// Donation tracking
+donationsMade: {
+type: Number,
+default: 0
+},
+
+donationsReceived: {
+type: Number,
+default: 0
+},
+
 createdAt: {
 type: Date,
 default: Date.now

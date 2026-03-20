@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       alert('Logged out successfully');
-      window.location.href = 'login.html';
+      window.location.href = 'index.html';
     });
   }
 });

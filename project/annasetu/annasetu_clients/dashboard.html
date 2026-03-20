@@ -1,182 +1,170 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>Annasetu Dashboard</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <link rel="stylesheet" href="css/dashboard.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-    />
-  </head>
+  <title>Annasetu Dashboard</title>
 
-  <body>
-    <div class="dashboard">
-      <!-- SIDEBAR -->
-      <div class="sidebar">
-        <h2 class="logo">🌾 Annasetu</h2>
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
 
-        <nav>
-          <a href="#" class="nav-link active"
-            ><i class="fa fa-home"></i> Dashboard</a
-          >
-          <a href="addfood.html" class="nav-link"
-            ><i class="fa fa-plus-circle"></i> Add Food</a
-          >
-          <a href="#" class="nav-link"
-            ><i class="fa fa-utensils"></i> Browse Food</a
-          >
-          <a href="#" class="nav-link"
-            ><i class="fa fa-bell"></i> Notifications</a
-          >
-          <a href="#" class="nav-link"><i class="fa fa-user"></i> Profile</a>
-          <a href="login.html" class="nav-link logout"
-            ><i class="fa fa-sign-out-alt"></i> Logout</a
-          >
-        </nav>
-      </div>
+<body>
+  <div class="dashboard">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <h2 class="logo">🌾 Annasetu</h2>
 
-      <!-- MAIN -->
-      <div class="main-content">
-        <!-- HEADER -->
-        <div class="header">
-          <h2 id="pageTitle">Welcome Back 👋</h2>
-
-          <div class="role-switch">
-            <button class="role-btn active" onclick="switchRole('donor')">
-              <i class="fa fa-heart"></i> Donor
-            </button>
-
-            <button class="role-btn" onclick="switchRole('receiver')">
-              <i class="fa fa-hands-helping"></i> Receiver
-            </button>
-          </div>
-        </div>
-
-        <!-- STATS -->
-        <div class="stats">
-          <div class="card">
-            <i class="fa fa-gift"></i>
-            <h3>12</h3>
-            <p>Donations</p>
-          </div>
-
-          <div class="card">
-            <i class="fa fa-clock"></i>
-            <h3>5</h3>
-            <p>Requests</p>
-          </div>
-
-          <div class="card">
-            <i class="fa fa-check-circle"></i>
-            <h3>8</h3>
-            <p>Distributed</p>
-          </div>
-
-          <div class="card">
-            <i class="fa fa-map-marker-alt"></i>
-            <h3>3</h3>
-            <p>Nearby</p>
-          </div>
-        </div>
-
-        <!-- DONOR SECTION -->
-        <div id="donorSection" class="section">
-          <div class="section-header">
-            <h3>My Donations</h3>
-            <button
-              onclick="location.href = 'addfood.html'"
-              class="btn-primary"
-            >
-              + Add Food
-            </button>
-          </div>
-
-          <table>
-            <tr>
-              <th>Food</th>
-              <th>Qty</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-
-            <tr>
-              <td>Rice</td>
-              <td>10 plates</td>
-              <td><span class="badge available">Available</span></td>
-              <td><button class="btn">Edit</button></td>
-            </tr>
-
-            <tr>
-              <td>Chapati</td>
-              <td>20 pcs</td>
-              <td><span class="badge pending">Requested</span></td>
-              <td><button class="btn">Edit</button></td>
-            </tr>
-          </table>
-        </div>
-
-        <!-- RECEIVER SECTION -->
-        <div id="receiverSection" class="section hidden">
-          <div class="section-header">
-            <h3>Available Food</h3>
-          </div>
-
-          <table>
-            <tr>
-              <th>Food</th>
-              <th>Qty</th>
-              <th>Distance</th>
-              <th>Action</th>
-            </tr>
-
-            <tr>
-              <td>Biryani</td>
-              <td>8 plates</td>
-              <td>2 km</td>
-              <td><button class="btn-request">Request</button></td>
-            </tr>
-
-            <tr>
-              <td>Bread</td>
-              <td>15 pcs</td>
-              <td>1 km</td>
-              <td><button class="btn-request">Request</button></td>
-            </tr>
-          </table>
-        </div>
-      </div>
+      <nav>
+        <a href="#" class="nav-link active"><i class="fa fa-home"></i> Dashboard</a>
+        <a href="addfood.html" class="nav-link"><i class="fa fa-plus-circle"></i> Add Food</a>
+        <a href="#" class="nav-link"><i class="fa fa-utensils"></i> Browse Food</a>
+        <a href="#" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
+        <a href="#" class="nav-link"><i class="fa fa-user"></i> Profile</a>
+        <a href="index.html" class="nav-link logout"
+          onclick="localStorage.removeItem('token');localStorage.removeItem('user');">
+          <i class="fa fa-sign-out-alt"></i> Logout</a>
+      </nav>
     </div>
 
-    <script>
-      function switchRole(role) {
-        const donor = document.getElementById("donorSection");
-        const receiver = document.getElementById("receiverSection");
-        const buttons = document.querySelectorAll(".role-btn");
+    <!-- MAIN -->
+    <div class="main-content">
+      <!-- HEADER -->
+      <div class="header">
+        <h2 id="pageTitle">Welcome Back 👋</h2>
 
-        buttons.forEach((btn) => btn.classList.remove("active"));
+        <div class="role-switch">
+          <button class="role-btn active" onclick="switchRole('donor')">
+            <i class="fa fa-heart"></i> Donor
+          </button>
 
-        if (role === "donor") {
-          donor.classList.remove("hidden");
-          receiver.classList.add("hidden");
-          buttons[0].classList.add("active");
-        } else {
-          donor.classList.add("hidden");
-          receiver.classList.remove("hidden");
-          buttons[1].classList.add("active");
-        }
+          <button class="role-btn" onclick="switchRole('receiver')">
+            <i class="fa fa-hands-helping"></i> Receiver
+          </button>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats">
+        <div class="card">
+          <i class="fa fa-gift"></i>
+          <h3>12</h3>
+          <p>Donations</p>
+        </div>
+
+        <div class="card">
+          <i class="fa fa-clock"></i>
+          <h3>5</h3>
+          <p>Requests</p>
+        </div>
+
+        <div class="card">
+          <i class="fa fa-check-circle"></i>
+          <h3>8</h3>
+          <p>Distributed</p>
+        </div>
+
+        <div class="card">
+          <i class="fa fa-map-marker-alt"></i>
+          <h3>3</h3>
+          <p>Nearby</p>
+        </div>
+      </div>
+
+      <!-- DONOR SECTION -->
+      <div id="donorSection" class="section">
+        <div class="section-header">
+          <h3>My Donations</h3>
+          <button onclick="location.href = 'addfood.html'" class="btn-primary">
+            + Add Food
+          </button>
+        </div>
+
+        <table>
+          <tr>
+            <th>Food</th>
+            <th>Qty</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+
+          <tr>
+            <td>Rice</td>
+            <td>10 plates</td>
+            <td><span class="badge available">Available</span></td>
+            <td><button class="btn">Edit</button></td>
+          </tr>
+
+          <tr>
+            <td>Chapati</td>
+            <td>20 pcs</td>
+            <td><span class="badge pending">Requested</span></td>
+            <td><button class="btn">Edit</button></td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- RECEIVER SECTION -->
+      <div id="receiverSection" class="section hidden">
+        <div class="section-header">
+          <h3>Available Food</h3>
+        </div>
+
+        <table>
+          <tr>
+            <th>Food</th>
+            <th>Qty</th>
+            <th>Distance</th>
+            <th>Action</th>
+          </tr>
+
+          <tr>
+            <td>Biryani</td>
+            <td>8 plates</td>
+            <td>2 km</td>
+            <td><button class="btn-request">Request</button></td>
+          </tr>
+
+          <tr>
+            <td>Bread</td>
+            <td>15 pcs</td>
+            <td>1 km</td>
+            <td><button class="btn-request">Request</button></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchRole(role) {
+      const donor = document.getElementById("donorSection");
+      const receiver = document.getElementById("receiverSection");
+      const buttons = document.querySelectorAll(".role-btn");
+
+      buttons.forEach((btn) => btn.classList.remove("active"));
+
+      if (role === "donor") {
+        donor.classList.remove("hidden");
+        receiver.classList.add("hidden");
+        buttons[0].classList.add("active");
+      } else {
+        donor.classList.add("hidden");
+        receiver.classList.remove("hidden");
+        buttons[1].classList.add("active");
       }
+    }
+  </script>
+  <<<<<<< Updated upstream <script src="js/dashboard.js">
     </script>
-<<<<<<< Updated upstream
-    <script src="js/dashboard.js"></script>
 
 </body>
 
 </html>
 =======
-  </body>
+</body>
+
 </html>
 >>>>>>> Stashed changes

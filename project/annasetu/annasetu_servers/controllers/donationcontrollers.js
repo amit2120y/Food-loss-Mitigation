@@ -148,12 +148,34 @@ exports.getUserDonations = async (req, res) => {
 // GET ALL DONATIONS (for browsing)
 exports.getAllDonations = async (req, res) => {
   try {
-    // Get only "Available" donations
-    const donations = await Donation.find({ status: "Available" })
+    // Get token and verify user
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get only "Available" donations, excluding the current user's donations
+    const donations = await Donation.find({ 
+      status: "Available",
+      userId: { $ne: user._id }  // Exclude current user's donations
+    })
       .populate("userId", "name email phone")
       .sort({ createdAt: -1 });
 
-    console.log(`✓ Fetched ${donations.length} available donations`);
+    console.log(`✓ Fetched ${donations.length} available donations for user ${user.email}`);
 
     res.status(200).json({
       message: "All available donations retrieved",

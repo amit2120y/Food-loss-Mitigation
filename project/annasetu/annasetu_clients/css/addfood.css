@@ -310,6 +310,8 @@ textarea {
 
 /* BUTTON */
 .btn-primary {
+  justify-content: center;
+  align-items: center;
   width: 100%;
   padding: 14px 22px;
   border: none;

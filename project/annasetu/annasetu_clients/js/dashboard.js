@@ -1,171 +1,157 @@
 // Dashboard Protection and User Display
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== Dashboard Page Loaded ===');
-  
-  // First, check if there's a token in the URL (from Google OAuth redirect)
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlToken = urlParams.get('token');
-  const urlUserId = urlParams.get('userId');
-  const urlUserName = urlParams.get('userName');
-  const urlUserEmail = urlParams.get('userEmail');
 
-  // If token is in URL, store it in localStorage
-  if (urlToken && urlUserId && urlUserName && urlUserEmail) {
-    console.log('✓ Found token in URL from Google OAuth redirect');
-    console.log('Storing credentials in localStorage...');
-    localStorage.setItem('token', urlToken);
-    localStorage.setItem('user', JSON.stringify({
-      id: urlUserId,
-      name: decodeURIComponent(urlUserName),
-      email: decodeURIComponent(urlUserEmail)
-    }));
-    
-    // Clear the URL parameters to clean up the address bar
-    window.history.replaceState({}, document.title, '/dashboard.html');
-    console.log('✓ Credentials stored and URL cleaned');
+  // Persist token from URL (Google OAuth) if present
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    const urlUserId = urlParams.get('userId');
+    const urlUserName = urlParams.get('userName');
+    const urlUserEmail = urlParams.get('userEmail');
+
+    if (urlToken && urlUserId) {
+      localStorage.setItem('token', urlToken);
+      localStorage.setItem('user', JSON.stringify({ id: urlUserId, name: decodeURIComponent(urlUserName || ''), email: decodeURIComponent(urlUserEmail || '') }));
+      window.history.replaceState({}, document.title, '/dashboard.html');
+      console.log('Stored token from URL');
+    }
+  } catch (err) {
+    console.warn('URL token handling failed', err);
   }
 
-  // Now check if user is logged in
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || 'null');
 
-  console.log('=== Checking Authentication ===');
-  console.log('Token exists:', !!token);
-  console.log('User exists:', !!user);
-  console.log('User data:', user ? { id: user.id, name: user.name, email: user.email } : 'N/A');
-
   if (!token || !user) {
-    // Redirect to login if not authenticated
-    console.log('❌ Authentication failed - redirecting to login');
-    alert('Please log in first');
+    console.log('No token/user found; redirecting to login');
     window.location.href = 'login.html';
     return;
   }
 
-  console.log('✓ User authenticated, loading personal dashboard...');
-
-  // Display user name in the welcome message
+  // Update welcome
   const pageTitle = document.getElementById('pageTitle');
-  if (pageTitle) {
-    pageTitle.textContent = `Welcome Back, ${user.name}! 👋`;
-    console.log('✓ Welcome message updated');
-  }
+  if (pageTitle) pageTitle.textContent = `Welcome Back, ${user.name || 'User'}! 👋`;
 
-  // Fetch user stats from server
+  // Try to fetch user stats (non-fatal)
   try {
-    console.log('Fetching user stats from API...');
-    const statsResponse = await fetch('http://localhost:5000/api/auth/user-stats', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!statsResponse.ok) {
-      throw new Error(`Failed to fetch stats: ${statsResponse.status}`);
-    }
-
-    const statsData = await statsResponse.json();
-    console.log('✓ User stats retrieved:', statsData.user);
-
-    // Update stats cards with real data
-    const statsCards = document.querySelectorAll('.stats .card');
-    if (statsCards.length >= 4) {
-      // Donations made
-      statsCards[0].querySelector('h3').textContent = statsData.user.donationsMade;
-      statsCards[0].querySelector('p').textContent = 'Donations Made';
-
-      // Donations received
-      statsCards[1].querySelector('h3').textContent = statsData.user.donationsReceived;
-      statsCards[1].querySelector('p').textContent = 'Donations Received';
-
-      // You can add more stats here in future
-      statsCards[2].querySelector('h3').textContent = '0';
-      statsCards[2].querySelector('p').textContent = 'Completed';
-
-      statsCards[3].querySelector('h3').textContent = '0';
-      statsCards[3].querySelector('p').textContent = 'Nearby';
-
-      console.log('✓ Stats cards updated with real data');
-    }
-  } catch (error) {
-    console.error('Error fetching user stats:', error);
-    // Show default values if fetch fails
-    const statsCards = document.querySelectorAll('.stats .card');
-    if (statsCards.length >= 2) {
-      statsCards[0].querySelector('h3').textContent = '0';
-      statsCards[1].querySelector('h3').textContent = '0';
-    }
-  }
-
-  // Render donations from database into the table
-  try {
-    const token = localStorage.getItem('token');
-    console.log('Fetching donations from database for user:', user.id);
-    
-    const response = await fetch('http://localhost:5000/api/donations/my-donations', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = await response.json();
-    console.log('Donations response:', data);
-    console.log('User ID from response:', data.userId);
-    console.log('Donations count:', data.count);
-
-    if (response.ok && data.donations && data.donations.length > 0) {
-      const donations = data.donations;
-      const table = document.querySelector('#donorSection table');
-      
-      if (table) {
-        // Remove existing sample rows (keep header)
-        const rows = table.querySelectorAll('tr');
-        rows.forEach((r, idx) => { if (idx > 0) r.remove(); });
-
-        donations.forEach(d => {
-          const tr = document.createElement('tr');
-          const date = new Date(d.cookedTime).toLocaleDateString();
-          tr.innerHTML = `
-            <td>${d.food}</td>
-            <td>${d.quantity}</td>
-            <td><span class="badge available">${d.status}</span></td>
-            <td><button class="btn" onclick="alert('Edit feature coming soon')">Edit</button></td>
-          `;
-          table.appendChild(tr);
-        });
-        console.log(`✓ Loaded ${donations.length} donations from database`);
-      }
-    } else {
-      console.log('No donations found in database');
-      // Show empty state message
-      const table = document.querySelector('#donorSection table');
-      if (table) {
-        const rows = table.querySelectorAll('tr');
-        rows.forEach((r, idx) => { if (idx > 0) r.remove(); });
+    const statsRes = await fetch('http://localhost:5000/api/auth/user-stats', { headers: { Authorization: `Bearer ${token}` } });
+    if (statsRes.ok) {
+      const stats = await statsRes.json();
+      const cards = document.querySelectorAll('.stats .card');
+      if (cards.length >= 2) {
+        cards[0].querySelector('h3').textContent = stats.user?.donationsMade ?? '0';
+        cards[1].querySelector('h3').textContent = stats.user?.donationsReceived ?? '0';
       }
     }
   } catch (err) {
-    console.error('Failed to fetch donations from database', err);
+    console.warn('Failed to fetch stats', err);
   }
 
-  // Handle logout
+  // Load donations: prefer backend, fallback to localStorage
+  let donations = [];
+  try {
+    const res = await fetch('http://localhost:5000/api/donations/my-donations', { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      const body = await res.json();
+      donations = body.donations || [];
+    }
+  } catch (err) {
+    console.warn('Backend donations unavailable, will fallback to localStorage');
+  }
+
+  // Also load all available donations (others') to compute nearby/requests by others
+  let availableDonations = [];
+  try {
+    const res2 = await fetch('http://localhost:5000/api/donations/available', { headers: { Authorization: `Bearer ${token}` } });
+    if (res2.ok) {
+      const body2 = await res2.json();
+      availableDonations = body2.donations || [];
+    }
+  } catch (err) {
+    console.warn('Backend available donations unavailable, will fallback to localStorage');
+  }
+
+  if (!donations.length) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('donations') || '[]');
+      const currentUserId = user.id || user._id || user.email;
+      donations = stored.filter(d => !d.userId || d.userId === currentUserId);
+
+      // If availableDonations empty, derive from stored (others')
+      if (!availableDonations.length) {
+        availableDonations = stored.filter(d => !d.userId || d.userId !== currentUserId);
+      }
+    } catch (err) {
+      console.warn('Failed to read local donations', err);
+    }
+  }
+
+  // Render donations
+  const table = document.querySelector('#donorSection table');
+  if (table) {
+    const rows = table.querySelectorAll('tr');
+    rows.forEach((r, i) => { if (i > 0) r.remove(); });
+    donations.forEach(d => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${d.food || d.foodName || '-'}</td>
+        <td>${d.quantity || d.qty || '-'}</td>
+        <td><span class="badge available">${d.status || 'Available'}</span></td>
+        <td><button class="btn" onclick="alert('Edit feature coming soon')">Edit</button></td>
+      `;
+      table.appendChild(tr);
+    });
+  }
+
+  // Compute dashboard counts and update stat cards
+  try {
+    const cards = document.querySelectorAll('.stats .card');
+    // Determine counts:
+    // - donationsMade: number of donations created by current user (donations.length)
+    // - requestsByOthers: donations belonging to user that have status 'Requested' (server-side not yet fully modeled) OR count of availableDonations where status === 'Requested'
+    // - requestsMadeByUser: we don't have a dedicated endpoint; fallback to localStorage 'requests' array or 0
+    // - nearby: number of availableDonations
+
+    const donationsMade = Array.isArray(donations) ? donations.length : 0;
+    const requestsByOthers = Array.isArray(donations) ? donations.filter(d => (d.status || '').toLowerCase() === 'requested').length : 0;
+    // fallback: check availableDonations for requested flags
+    const altRequestsByOthers = Array.isArray(availableDonations) ? availableDonations.filter(d => (d.status || '').toLowerCase() === 'requested').length : 0;
+    const finalRequestsByOthers = requestsByOthers || altRequestsByOthers;
+
+    let requestsMadeByUser = 0;
+    try {
+      const storedRequests = JSON.parse(localStorage.getItem('requests') || '[]');
+      requestsMadeByUser = Array.isArray(storedRequests) ? storedRequests.filter(r => (r.requesterId || r.userId || r.from) === (user.id || user._id || user.email)).length : 0;
+    } catch (err) {
+      requestsMadeByUser = 0;
+    }
+
+    const nearby = Array.isArray(availableDonations) ? availableDonations.length : 0;
+
+    if (cards && cards.length >= 4) {
+      // Map cards in order: Donations, Requests, Distributed, Nearby
+      cards[0].querySelector('h3').textContent = String(donationsMade);
+      cards[1].querySelector('h3').textContent = String(finalRequestsByOthers || requestsMadeByUser || '0');
+      // Preserve 'Distributed' for now but set to 0 if unknown
+      cards[2].querySelector('h3').textContent = cards[2].querySelector('h3').textContent || '0';
+      cards[3].querySelector('h3').textContent = String(nearby);
+    }
+  } catch (err) {
+    console.warn('Failed to compute/update dashboard counts', err);
+  }
+
+  // Logout handler (explicit only)
   const logoutBtn = document.querySelector('.logout');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      // Only clear auth data - KEEP donations data
+      console.log('Logout clicked');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      // Note: Donations are kept for when user logs back in
-      console.log('✓ User logged out - Donations preserved');
-      alert('Logged out successfully');
       window.location.href = 'index.html';
     });
   }
-  
+
   console.log('=== Dashboard Fully Loaded ===');
 });

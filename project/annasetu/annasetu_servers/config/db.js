@@ -11,6 +11,7 @@ const connectDB = async () => {
   }
 
   try {
+    // mongoose >=6 handles parsing options internally; pass the uri string only
     await mongoose.connect(uri);
     console.log("MongoDB connected successfully");
   } catch (error) {

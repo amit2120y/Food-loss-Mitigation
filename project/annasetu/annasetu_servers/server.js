@@ -1,13 +1,18 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const cors = require("cors");
 const path = require("path");
-const passport = require("passport");
+const cors = require("cors");
 const session = require("express-session");
+const passport = require("passport");
 
 // Load environment variables early so other modules can read them
-// Explicitly specify the path to .env file (relative to this file's parent directory)
-dotenv.config({ path: path.join(__dirname, "../.env") });
+// Explicitly load the .env located next to this file
+const envPath = path.join(__dirname, ".env");
+const result = dotenv.config({ path: envPath });
+if (result.error) {
+  // Fallback to default config (will look in process.cwd())
+  dotenv.config();
+}
 
 // Configure Passport (must be after dotenv.config())
 require("./config/passport");
@@ -31,7 +36,7 @@ app.use(session({
   secret: process.env.JWT_SECRET || "your_session_secret",
   resave: false,
   saveUninitialized: true,
-  cookie: { 
+  cookie: {
     secure: false, // Set to true in production with HTTPS
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 24 hours

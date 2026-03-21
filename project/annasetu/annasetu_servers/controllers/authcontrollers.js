@@ -7,41 +7,40 @@ const jwt = require("jsonwebtoken");
 
 exports.registerUser = async (req, res) => {
 
-try {
+    try {
 
-const { name, email, phone, password } = req.body;
+        const { name, email, phone, password } = req.body;
 
-// Validate input
-if (!name || !email || !phone || !password) {
-return res.status(400).json({ message: "Please provide all required fields" });
-}
+        // Validate input
+        if (!name || !email || !phone || !password) {
+            return res.status(400).json({ message: "Please provide all required fields" });
+        }
 
-// check if user exists
-const existingUser = await User.findOne({ email });
+        // check if user exists
+        const existingUser = await User.findOne({ email });
 
-if (existingUser) {
-return res.status(400).json({ message: "User already exists with this email" });
-}
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists with this email" });
+        }
 
-// hash password
-const hashedPassword = await bcrypt.hash(password, 10);
+        // hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
 // create user
 const user = await User.create({
 name,
 email,
 phone,
-password: hashedPassword,
-authMethod: 'email'
+password: hashedPassword
 });
 
-console.log("User registered successfully:", user.email);
-res.status(201).json({ message: "User registered successfully", userId: user._id });
+        console.log("User registered successfully:", user.email);
+        res.status(201).json({ message: "User registered successfully", userId: user._id });
 
-} catch (error) {
-console.error("Registration error:", error.message);
-res.status(500).json({ message: "Registration failed", error: error.message });
-}
+    } catch (error) {
+        console.error("Registration error:", error.message);
+        res.status(500).json({ message: "Registration failed", error: error.message });
+    }
 
 };
 
@@ -51,52 +50,59 @@ res.status(500).json({ message: "Registration failed", error: error.message });
 
 exports.loginUser = async (req, res) => {
 
-try {
+    try {
 
-const { email, password } = req.body;
+        const { email, password } = req.body;
 
-// Validate input
-if (!email || !password) {
-return res.status(400).json({ message: "Please provide email and password" });
-}
+        // Validate input
+        if (!email || !password) {
+            return res.status(400).json({ message: "Please provide email and password" });
+        }
 
-// check user
-const user = await User.findOne({ email });
+        // check user
+        const user = await User.findOne({ email });
 
-if (!user) {
-return res.status(401).json({ message: "Invalid email or password" });
-}
+        if (!user) {
+            return res.status(401).json({ message: "Invalid email or password" });
+        }
 
-// compare password
-const isMatch = await bcrypt.compare(password, user.password);
+        // compare password
+        const isMatch = await bcrypt.compare(password, user.password);
 
-if (!isMatch) {
-return res.status(401).json({ message: "Invalid email or password" });
-}
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid email or password" });
+        }
 
-// create token
-const token = jwt.sign(
-{ id: user._id },
-process.env.JWT_SECRET,
-{ expiresIn: "7d" }
-);
+        // Ensure JWT secret exists
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+            console.error("JWT_SECRET is not defined in environment variables.");
+            return res.status(500).json({ message: "Server configuration error: JWT secret is missing" });
+        }
 
-console.log("User logged in successfully:", user.email);
+        // create token
+        const token = jwt.sign(
+            { id: user._id },
+            jwtSecret,
+            { expiresIn: "7d" }
+        );
 
-res.status(200).json({
-message: "Login successful",
-token,
-user: {
-id: user._id,
-name: user.name,
-email: user.email
-}
-});
+        console.log("User logged in successfully:", user.email);
 
-} catch (error) {
-console.error("Login error:", error.message);
-res.status(500).json({ message: "Login failed", error: error.message });
-}
+        res.status(200).json({
+            message: "Login successful",
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email
+            }
+        });
+
+    } catch (error) {
+        console.error("Login error:", error.message);
+        res.status(500).json({ message: "Login failed", error: error.message });
+    }
 
 };
 

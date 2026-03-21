@@ -31,8 +31,7 @@
                 <a href="browse.html" class="nav-link"><i class="fa fa-utensils"></i> Browse Food</a>
                 <a href="notifications.html" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
                 <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
-                <a href="index.html" class="nav-link logout"
-                    onclick="localStorage.removeItem('token');localStorage.removeItem('user');">
+                <a href="index.html" class="nav-link logout">
                     <i class="fa fa-sign-out-alt"></i> Logout</a>
             </nav>
         </div>
@@ -233,14 +232,21 @@
             const description = document.getElementById('description').value || '';
             const location = document.getElementById('location').value || '';
 
+            // include the current logged-in user's id so donations are scoped per user
+            const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+            const currentUserId = currentUser?.id || currentUser?._id || currentUser?.email || 'anonymous';
+
             const donation = {
                 food: foodName,
                 quantity,
+                cookedTime,
                 foodType,
                 description,
                 location,
-                cookedTime,
-                images: imagesData.slice()
+                images: imagesData.slice(),
+                status: 'Available',
+                userId: currentUserId,
+                createdAt: new Date().toISOString()
             };
 
             // Save to database instead of localStorage

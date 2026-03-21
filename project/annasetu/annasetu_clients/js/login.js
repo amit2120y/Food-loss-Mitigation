@@ -41,6 +41,7 @@ function handleCredentialResponse(response) {
 }
 
 // Login Form Handler
+<<<<<<< Updated upstream
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Login page loaded');
   
@@ -52,47 +53,63 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.querySelector('form');
   console.log('Form found:', !!loginForm);
   
+=======
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("Login page loaded");
+
+  const loginForm = document.querySelector("form");
+  console.log("Form found:", !!loginForm);
+
+>>>>>>> Stashed changes
   if (loginForm) {
-    console.log('Attaching submit event listener');
-    
-    loginForm.addEventListener('submit', async (e) => {
+    console.log("Attaching submit event listener");
+
+    loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      console.log('Form submitted');
+      console.log("Form submitted");
 
       // Get form values
       const email = document.querySelector('input[name="email"]').value;
       const password = document.querySelector('input[name="password"]').value;
 
-      console.log('Form values:', { email, password });
+      console.log("Form values:", { email, password });
 
       // Validation
       if (!email || !password) {
-        alert('Please fill in all fields');
+        alert("Please fill in all fields");
         return;
       }
 
       try {
-        console.log('Sending fetch request to: http://localhost:5000/api/auth/login');
-        
+        console.log(
+          "Sending fetch request to: http://localhost:5000/api/auth/login",
+        );
+
         // Send login request
-        const response = await fetch('http://localhost:5000/api/auth/login', {
-          method: 'POST',
+        const response = await fetch("http://localhost:5000/api/auth/login", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             email,
-            password
-          })
+            password,
+          }),
         });
 
-        console.log('Response received - Status:', response.status, 'OK:', response.ok);
+        console.log(
+          "Response received - Status:",
+          response.status,
+          "OK:",
+          response.ok,
+        );
 
         const data = await response.json();
-        console.log('Response data:', data);
+        console.log("Response data:", data);
 
         if (response.ok) {
           // Store token in localStorage
+<<<<<<< Updated upstream
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
           
@@ -103,19 +120,23 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem(userDonationsKey, oldDonations);
             localStorage.removeItem('donations');
           }
+=======
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("user", JSON.stringify(data.user));
+>>>>>>> Stashed changes
 
-          alert('Login successful! Redirecting to dashboard...');
-          window.location.href = 'dashboard.html';
+          alert("Login successful! Redirecting to dashboard...");
+          window.location.href = "dashboard.html";
         } else {
-          alert(data.message || 'Login failed, please try again');
+          alert(data.message || "Login failed, please try again");
         }
       } catch (error) {
-        console.error('Fetch Error:', error);
-        alert('Error: ' + error.message);
+        console.error("Fetch Error:", error);
+        alert("Error: " + error.message);
       }
     });
   } else {
-    console.error('Form not found on page');
+    console.error("Form not found on page");
   }
 });
 

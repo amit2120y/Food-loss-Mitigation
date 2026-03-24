@@ -1,0 +1,41 @@
+*{
+    margin: 0px;
+    padding: 0px;
+}
+body{
+    background-color: black;
+}
+.container{
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
+    background-color: rgb(74, 89, 222);
+    padding: 10px;
+    gap: 5px;
+    height:400px;
+    width: 400px;}
+.first{
+    background-color:darkcyan ;
+}
+.second{
+    background-color: rgb(244, 118, 175);
+}
+.third{
+    background-color: rgb(117, 94, 231);
+}
+.fourth{
+    background-color: rgb(211, 110, 22);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

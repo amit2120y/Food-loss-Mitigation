@@ -1,0 +1,34 @@
+*{
+    margin: 0px;
+    padding: 0px;
+}
+h1{
+    background-color: violet;
+    height: 100px;
+    width: 300px;
+    /* border-width: 5px;
+    border-style: solid;
+    border-color: rgb(24, 16, 5);     */
+    border:10px solid green;
+    padding: 10px;
+     /* padding increases the distance between content and border ; */
+    margin: 20px;
+     /* it shows the distance betweeen borders of two diffrent sections */
+    box-sizing: content-box;
+}
+p{
+    background-color: cadetblue
+    ;
+    padding: 20px;
+    border: 5px solid blue;
+    margin: 15px;
+}
+h2{
+    background-color: burlywood;
+    border: 10px solid goldenrod;
+    padding: 10px;
+    box-sizing: border-box;
+}
+span{
+    background-color: blanchedalmond;
+}

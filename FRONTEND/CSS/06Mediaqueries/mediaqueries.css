@@ -1,0 +1,66 @@
+.container{
+    height: 400px;
+    width: 400px;
+    font-size:50px ;
+    background-color: aqua;
+}
+
+/* Desktop-first design */
+/* @media screen and (max-width:900px) {
+    .container{
+        font-size:30px ;
+        background-color: rgb(125, 163, 251);
+    }  
+} 
+@media screen and (max-width:600px) {
+    .container{
+        height: 300px;
+        width: 300px;
+        font-size:30px ;
+        background-color: rgb(5, 30, 30);
+    }  
+} */
+
+/* Mobile-First design */
+@media screen and (min-width:800px){
+    .container{
+        background-color: orange;
+        font-size: 60px;
+    }
+}
+@media screen and (min-width:900px){
+    .container{
+        background-color: #df38a2;
+        font-size: 80px;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

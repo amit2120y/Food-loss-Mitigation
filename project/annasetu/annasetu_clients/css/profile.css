@@ -137,7 +137,7 @@
 
 .edit-btn,
 .btn-secondary {
-  background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+  background: #2e7d32;
   color: white;
   border: none;
   padding: 10px 18px;
@@ -145,7 +145,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.3s ease;
+  transition: background 0.2s ease, transform 0.1s ease;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -153,8 +153,8 @@
 
 .edit-btn:hover,
 .btn-secondary:hover {
+  background: #256628;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
 
 /* VIEW MODE */
@@ -248,13 +248,13 @@
 }
 
 .btn-save {
-  background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+  background: #2e7d32;
   color: white;
 }
 
 .btn-save:hover {
+  background: #256628;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
 
 .btn-cancel {
@@ -367,14 +367,14 @@
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #f44336 100%);
+  background: #e53935;
   color: white;
   flex: 1;
 }
 
 .btn-danger:hover {
+  background: #c62828;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* MODAL */
@@ -627,14 +627,14 @@
 
 .edit-btn,
 .btn-secondary {
-  background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+  background: #2e7d32;
   color: white;
   border: none;
   padding: 10px 20px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.3s ease;
+  transition: background 0.2s ease, transform 0.1s ease;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -642,8 +642,8 @@
 
 .edit-btn:hover,
 .btn-secondary:hover {
+  background: #256628;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
 
 /* VIEW MODE */
@@ -734,38 +734,14 @@
 }
 
 .btn-save {
-  background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+  background: #2e7d32;
   color: white;
 }
 
 .btn-save:hover {
+  background: #256628;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
-
-.btn-cancel {
-  flex: 1;
-  padding: 12px 20px;
-  background: transparent;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  color: #666;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.btn-cancel:hover {
-  border-color: #999;
-  color: #333;
-}
-
-/* SETTINGS LIST */
 .settings-list {
   display: flex;
   flex-direction: column;
@@ -851,14 +827,14 @@
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #f44336 100%);
+  background: #e53935;
   color: white;
   flex: 1;
 }
 
 .btn-danger:hover {
+  background: #c62828;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* MODAL */

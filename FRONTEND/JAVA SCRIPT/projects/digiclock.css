@@ -1,0 +1,14 @@
+body{
+    background-color: black;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+#time{
+    font-size: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

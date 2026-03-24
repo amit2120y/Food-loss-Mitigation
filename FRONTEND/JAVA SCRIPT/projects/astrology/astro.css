@@ -1,0 +1,48 @@
+*{
+    padding: 0px;
+    margin: 0px;
+}
+body{
+    background-color: #F7CAC9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+#main{
+    padding: 20px;
+    width: 320px;
+    border: 2px solid blueviolet;
+    background-color: rgb(183, 178, 239);
+}
+
+h1{
+    font-size: 25px;
+    font-family:Georgia, 'Times New Roman', Times, serif;
+    margin-bottom: 18px;
+    text-align: center;
+}
+
+label{
+    display: block;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin-bottom: 20px;
+}
+input{
+    margin-bottom: 12px;
+    height: 30px;
+    padding: 4px 6px;    
+}
+input[type="submit"]{
+    background-color: blueviolet;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+#result{
+    margin-top: 15px;
+    padding: 10px;
+    background-color: white;
+    font-size: 14px;
+    line-height: 1.4;
+}

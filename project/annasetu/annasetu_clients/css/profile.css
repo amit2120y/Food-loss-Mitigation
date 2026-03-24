@@ -3,7 +3,7 @@
 .main-content {
   flex: 1;
   overflow-y: auto;
-  background: #f5f5f5;
+  background: #f4f6f8;
 }
 
 .profile-container {
@@ -93,7 +93,7 @@
 .stat-number {
   font-size: 24px;
   font-weight: 700;
-  color: #1b5e20;
+  color: #2e7d32;
   margin: 0;
 }
 
@@ -129,23 +129,23 @@
 }
 
 .section-header h2 {
-  font-size: 19px;
-  color: #1b5e20;
+  font-size: 18px;
+  color: #3d3d3d;
   margin: 0;
   font-weight: 600;
 }
 
 .edit-btn,
 .btn-secondary {
-  background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+  background: #2e7d32;
   color: white;
   border: none;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  font-weight: 600;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -210,12 +210,13 @@
 .form-group input {
   width: 100%;
   padding: 12px 15px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid #ddd;
+  border-radius: 7px;
   font-size: 14px;
-  transition: all 0.3s ease;
+  transition: border 0.2s ease, background 0.2s ease;
   box-sizing: border-box;
   font-family: inherit;
+  background: #f9f9f9;
 }
 
 .form-group input:focus {
@@ -275,8 +276,8 @@
 }
 
 .btn-cancel:hover {
-  border-color: #999;
-  color: #333;
+  border-color: #2e7d32;
+  color: #3d3d3d;
   background: #f9f9f9;
 }
 
@@ -291,9 +292,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px;
+  padding: 19px;
   background: #f9f9f9;
-  border-radius: 8px;
+  border-radius: 7px;
   border-left: 4px solid #2e7d32;
 }
 

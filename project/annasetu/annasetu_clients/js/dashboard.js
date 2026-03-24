@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Update welcome
   const pageTitle = document.getElementById('pageTitle');
-  if (pageTitle) pageTitle.textContent = `Welcome Back, ${user.name || 'User'}! 👋`;
+  if (pageTitle) pageTitle.textContent = `Welcome Back, ${user.name || 'User'}!`;
 
   // Try to fetch user stats (non-fatal)
   try {
@@ -48,17 +48,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('Failed to fetch stats', err);
   }
 
-  // Load donations: prefer backend, fallback to localStorage
+  // Load donations with retry mechanism: prefer backend, fallback to localStorage
   let donations = [];
-  try {
-    const res = await fetch('http://localhost:5000/api/donations/my-donations', { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const body = await res.json();
-      donations = body.donations || [];
+  let retryCount = 0;
+  const maxRetries = 8;
+
+  const fetchDonationsWithRetry = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/donations/my-donations', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const body = await res.json();
+        donations = body.donations || [];
+
+        // If donations empty and we haven't retried too many times, retry after delay
+        if ((!donations || donations.length === 0) && retryCount < maxRetries) {
+          retryCount++;
+          const delayMs = Math.min(1000 + (retryCount * 1500), 10000); // Increase delay: 2.5s, 4s, 5.5s, etc.
+          console.log(`No donations found yet. Retrying in ${delayMs}ms (attempt ${retryCount}/${maxRetries})`);
+          await new Promise(r => setTimeout(r, delayMs));
+          return fetchDonationsWithRetry();
+        }
+      }
+    } catch (err) {
+      console.warn('Backend donations unavailable, will fallback to localStorage');
     }
-  } catch (err) {
-    console.warn('Backend donations unavailable, will fallback to localStorage');
-  }
+
+    return donations;
+  };
+
+  donations = await fetchDonationsWithRetry();
 
   // Also load all available donations (others') to compute nearby/requests by others
   let availableDonations = [];

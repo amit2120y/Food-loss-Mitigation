@@ -41,7 +41,6 @@ function handleCredentialResponse(response) {
 }
 
 // Login Form Handler
-<<<<<<< Updated upstream
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Login page loaded');
   
@@ -53,14 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.querySelector('form');
   console.log('Form found:', !!loginForm);
   
-=======
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("Login page loaded");
-
-  const loginForm = document.querySelector("form");
-  console.log("Form found:", !!loginForm);
-
->>>>>>> Stashed changes
   if (loginForm) {
     console.log("Attaching submit event listener");
 
@@ -109,7 +100,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (response.ok) {
           // Store token in localStorage
-<<<<<<< Updated upstream
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
           
@@ -120,10 +110,6 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem(userDonationsKey, oldDonations);
             localStorage.removeItem('donations');
           }
-=======
-          localStorage.setItem("token", data.token);
-          localStorage.setItem("user", JSON.stringify(data.user));
->>>>>>> Stashed changes
 
           alert("Login successful! Redirecting to dashboard...");
           window.location.href = "dashboard.html";

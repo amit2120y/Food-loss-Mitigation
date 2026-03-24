@@ -1,0 +1,76 @@
+*{
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.container{
+    height: 100vh;
+    background-color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    gap: 20px;
+}
+
+.box{
+    height: 150px;
+    width: 150px;
+    background-color: bisque;
+    cursor: pointer;
+    /* transition: all 3s; */
+    
+    /* transition-property: height/width/all *  you can you use any one of them as per our need,and if we want to change height width and background colour simultaneousluy then we can select "all"
+.    transition-duration: 3s;*/
+
+
+    
+     transition-duration: 3s;
+    transition-timing-function: ease-in;
+    transition-delay: 2s; 
+   
+
+
+    /*shorthand to use transitions:
+     (transition: transition-delay  transition-duration  transition-timing-function   transition-delay;) */
+
+}
+.box:hover{
+    background-color: rgb(50, 111, 209);
+    width: 300px; 
+    height: 300px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

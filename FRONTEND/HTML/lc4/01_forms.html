@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forms</title>
+  </head>
+  <body>
+    <form>
+      <label for="name">Name:</label>
+      <!-- label is used so that user can know that what we have to fill inside the box i.e input -->
+      <!-- here we used "for" and "id(in input section)" so that if either we want to click on name word it will got automatically selected rather then clicking on circle. -->
+      <input type="text" name="userName" id="name" />
+      <!-- here we introduce name="userName" so that it can save the data on the backend database as the name:value pair otherwise backend will not understand and diffrentite between which name is related to which value" -->
+      <br /><br />
+      <label for="fathername">Father Name:</label>
+      <input type="text" name="userFathername" id="fathername" />
+
+      <br /><br />
+      <label for="Password">Password:</label>
+      <input type="password" name=" userPasswod" id="Password" />
+
+      <br /><br />
+      <label for="Age">Age:</label>
+      <input type="number" name="userAge" id="Age" />
+      <br /><br />
+      <label for="Male">Male</label>
+      <input type="radio" name="gender" id="Male" value="Male" />
+      <!-- here we used "for" and "id" so that if either we want to click on male word and its got automatically selected rather then clicking on circle. -->
+
+      <label for="Female">Female</label>
+      <input type="radio" name="gender" id="Female" value="Female" />
+      <!-- now here we used "value="female"" so that it can store the input data in backend database as gender=female other wise it stores default value such as on or off.-->
+
+      <label for="other">other</label>
+      <input type="radio" name="gender" id="other" value="other" />
+
+      <br /><br />
+
+      <label for="c++">c++</label>
+      <input type="checkbox" name="subject" id="c++" value="C++" />
+
+      <label for="java">java</label>
+      <input type="checkbox" name="subject" id="java" value="JAVA" />
+
+      <label for="python">python</label>
+      <input type="checkbox" name="subject" id="python" value="python" />
+
+      <label for="C">C</label>
+      <input type="checkbox" name="subject" value="C" id="c" />
+
+      <input type="submit" />
+    </form>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+/* h1{
+    background-color: aqua;
+}
+#first{
+    background-color: blueviolet;
+}
+.classA{
+    background-color: green;
+} */
+
+*{
+    margin: 0px;
+    padding:0px
+}
+h2{
+    background-color:beige;
+    position: relative;
+    left: 100px;
+    /* top:30px;
+    bottom: 10px;
+    right: 20px;
+    left: 20px; */
+}
+h3{
+    background-color: aquamarine;
+    position: fixed;
+    top:0px;  
+    /* if position is fixed and top is 0px the element or that particular section will be stick at the top and will not move while scrolling or swiping. */
+}
+div{
+    background-color: aqua;
+    height: 2000px;
+    width: 1200px;
+}
+#sticky{
+    background-color: rgb(239, 239, 173);
+    position: sticky;
+    top:0px;
+}
+p{
+    background-color: cornsilk;
+    
+}
+
+
+
+
+
+
+
+

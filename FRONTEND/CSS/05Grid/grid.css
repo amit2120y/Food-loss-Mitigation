@@ -1,0 +1,63 @@
+
+*{
+    margin:0px;
+    padding: 0px;
+}
+body{
+    background-color: black;
+}
+.container{
+    display: flex;
+    background-color: rgb(174, 221, 221);
+    padding: 5px;
+    gap: 5px;
+}
+.Box{
+    height:300px;
+    width:200px;
+}
+.first{
+    background-color: orange;
+}
+.second{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.child{
+    height: 140px;
+    background-color: red;
+}
+
+
+/* 
+The upper code is to complex to implement that's why  we use "GRID"
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,79 @@
+body{
+    background-color: black;
+}
+
+.container{
+    background-color: antiquewhite;
+    display: flex; /* it automatically alligns the content in row wise */ 
+    /* flex-direction: column/row/row-reverse/column-reverse; */
+    height: 800px;
+    justify-content: center;
+    /* justify-content: start/end/space-around/space-between/space-evenly/stretch;  justify content works around main axis */
+    align-items: center;  
+     /*align content works around cross axis; */
+    flex-wrap: wrap;
+     /*it alligns sections according to the devices.*/
+    /* flex-wrap: nowrap;  */
+    gap: 5px;
+    } 
+    
+.box{
+    height: 100px;
+    width: 100px;
+    margin: 5px;
+}
+
+.first{
+    background-color: burlywood;
+    flex-grow: 1;
+}
+
+.second{
+    background-color: rgb(204, 132, 38);
+    flex-grow: 3;
+}
+
+.third{
+    background-color: rgb(33, 238, 190);
+    flex-grow: 2;
+    /* align-self: start; */
+}
+
+.fourth{
+    background-color: rgb(247, 26, 147);
+    flex-grow: 1;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

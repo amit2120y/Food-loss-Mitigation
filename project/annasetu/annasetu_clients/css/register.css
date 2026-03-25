@@ -16,7 +16,7 @@ height:100vh;
 
 .left-panel{
 flex:1;
-background:linear-gradient(135deg,#2e7d32,#66bb6a);
+background:#4caf50;
 color:white;
 display:flex;
 flex-direction:column;
@@ -24,21 +24,50 @@ justify-content:center;
 align-items:center;
 text-align:center;
 padding:63px;
-box-shadow:inset 0 0 20px rgba(0,0,0,0.1);
+position:relative;
+overflow:hidden;
+}
+
+.left-panel-image{
+position:absolute;
+top:0;
+left:0;
+width:100%;
+height:100%;
+object-fit:cover;
+z-index:1;
+filter:blur(2.5px);
+}
+
+.left-panel-overlay{
+position:absolute;
+top:0;
+left:0;
+width:100%;
+height:100%;
+/* background:linear-gradient(135deg, rgba(46, 125, 50, 0.65) 0%, rgba(102, 187, 106, 0.60) 100%); */
+z-index:2;
+pointer-events:none;
 }
 
 .left-panel h1{
-font-size:46px;
+font-size:48px;
 margin-bottom:22px;
-font-weight:600;
+font-weight:700;
 letter-spacing:0.4px;
+text-shadow:2px 2px 8px rgba(0,0,0,0.3);
+z-index:3;
+position:relative;
 }
 
 .left-panel p{
-font-size:18px;
-max-width:400px;
-line-height:1.65;
-opacity:0.95;
+font-size:19px;
+max-width:420px;
+line-height:1.7;
+opacity:0.98;
+text-shadow:1px 1px 4px rgba(0,0,0,0.2);
+z-index:3;
+position:relative;
 }
 
 

@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   searchInput.addEventListener('input', () => {
     // Clear previous timeout
     clearTimeout(searchTimeout);
-    
+
     // Show loading indicator while typing
     searchTimeout = setTimeout(() => {
       handleSearch();
@@ -54,13 +54,13 @@ async function loadDonations() {
     const loadingEl = document.getElementById('loadingState');
     const gridEl = document.getElementById('donationsGrid');
     const emptyEl = document.getElementById('emptyState');
-    
+
     loadingEl.classList.remove('hidden');
     gridEl.innerHTML = '';
     emptyEl.classList.add('hidden');
 
     const startTime = performance.now();
-    
+
     const response = await fetch('http://localhost:5000/api/donations/available', {
       method: 'GET',
       headers: {
@@ -75,7 +75,7 @@ async function loadDonations() {
 
     const data = await response.json();
     const loadTime = performance.now() - startTime;
-    
+
     console.log(`✓ Fetched ${data.donations.length} available donations in ${loadTime.toFixed(2)}ms`);
     console.log('Sample donation:', data.donations[0]); // Debug: see what data looks like
 
@@ -85,12 +85,12 @@ async function loadDonations() {
     // Hide loading, show results
     loadingEl.classList.add('hidden');
     displayDonations(filteredDonations);
-    
+
   } catch (error) {
     console.error('Error loading donations:', error);
     const loadingEl = document.getElementById('loadingState');
     const gridEl = document.getElementById('donationsGrid');
-    
+
     loadingEl.classList.add('hidden');
     gridEl.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
@@ -114,7 +114,7 @@ function displayDonations(donations) {
 
   grid.style.display = 'grid';
   emptyState.classList.add('hidden');
-  
+
   try {
     // Create all cards at once, then insert
     const fragment = document.createDocumentFragment();
@@ -124,11 +124,11 @@ function displayDonations(donations) {
       div.innerHTML = cardHTML;
       return div.firstElementChild;
     }).filter(card => card !== null); // Filter out any null cards
-    
+
     cards.forEach(card => fragment.appendChild(card));
     grid.innerHTML = ''; // Clear
     grid.appendChild(fragment);
-    
+
     console.log(`⚡ Rendered ${donations.length} cards in grid`);
   } catch (error) {
     console.error('Error displaying donations:', error);
@@ -148,7 +148,7 @@ function createDonationCard(donation) {
     const qualityTag = donation.aiAnalysis ? getQualityTag(donation.aiAnalysis) : '';
     const donorName = donation.userId?.name || 'Anonymous';
     const donorLocation = donation.userId?.location || donation.location || 'Unknown';
-    
+
     // Safe date parsing
     let cookedDate = 'Unknown Date';
     if (donation.cookedTime) {
@@ -160,13 +160,13 @@ function createDonationCard(donation) {
       }
     }
 
-  return `
+    return `
     <div class="donation-card">
       <div class="card-image">
-        ${donation.images && donation.images.length > 0 ? 
-          `<img src="${donation.images[0]}" alt="${donation.food}">` :
-          `<span>${foodIcon}</span>`
-        }
+        ${donation.images && donation.images.length > 0 ?
+        `<img src="${donation.images[0]}" alt="${donation.food}">` :
+        `<span>${foodIcon}</span>`
+      }
       </div>
 
       <div class="card-content">
@@ -252,7 +252,7 @@ function getQualityTag(aiAnalysis) {
   } else {
     tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">❌ Low Quality</span>';
   }
-  
+
   qualityTagCache[cacheKey] = tag;
   return tag;
 }
@@ -282,7 +282,7 @@ function handleSearch() {
 // Apply both filters and search with optimized logic
 function applyFiltersAndSearch(searchTerm = '') {
   const startTime = performance.now();
-  
+
   // Early exit if search term is empty and filter is 'all'
   if (!searchTerm && currentFilter === 'all') {
     filteredDonations = [...allDonations];
@@ -292,7 +292,7 @@ function applyFiltersAndSearch(searchTerm = '') {
   }
 
   const searchLower = searchTerm.toLowerCase().trim();
-  
+
   // Pre-compile filter function for reuse
   const filterFunc = (donation) => {
     // Filter by type first (faster check)
@@ -331,19 +331,19 @@ const modalCache = {
   modal: null,
   form: null,
   details: null,
-  
+
   init() {
     this.modal = document.getElementById('requestModal');
     this.form = document.getElementById('requestForm');
     this.details = document.getElementById('donationDetails');
   },
-  
+
   show() {
     if (!this.modal) return;
     this.modal.classList.remove('hidden');
     this.modal.style.display = 'flex';
   },
-  
+
   hide() {
     if (!this.modal) return;
     this.modal.classList.add('hidden');
@@ -362,7 +362,7 @@ function openRequestModal(donationId, foodName, donorName) {
   // Populate donation details in modal - with sanitization
   const sanitizedFood = String(foodName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const sanitizedDonor = String(donorName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  
+
   modalCache.details.innerHTML = `
     <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">
       🍽️ <strong>${sanitizedFood}</strong>

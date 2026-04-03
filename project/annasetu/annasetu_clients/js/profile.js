@@ -56,12 +56,12 @@ document.addEventListener('visibilitychange', () => {
     console.log('Profile page hidden');
     return;
   }
-  
+
   console.log('Profile page visible again');
   // Verify user is still authenticated
   const token = localStorage.getItem('token');
   const user = localStorage.getItem('user');
-  
+
   if (!token || !user) {
     console.warn('⚠️ Session expired, redirecting to login...');
     setTimeout(() => {
@@ -69,7 +69,7 @@ document.addEventListener('visibilitychange', () => {
     }, 500);
     return;
   }
-  
+
   // Refresh profile data if needed
   if (currentUser && isPageInitialized) {
     console.log('Refreshing profile data...');
@@ -83,7 +83,7 @@ document.addEventListener('visibilitychange', () => {
 async function loadProfileData() {
   try {
     const token = localStorage.getItem('token');
-    
+
     if (!currentUser) {
       console.warn('No current user data available');
       return;
@@ -122,7 +122,7 @@ function displayProfileData(user) {
     const userNameEl = document.getElementById('userName');
     const userEmailEl = document.getElementById('userEmail');
     const joinDateEl = document.getElementById('joinDate');
-    
+
     if (userNameEl) userNameEl.textContent = user.name || 'User';
     if (userEmailEl) userEmailEl.textContent = user.email || 'email@example.com';
 
@@ -148,7 +148,7 @@ function displayProfileData(user) {
     // Update stats
     const donationsMadeEl = document.getElementById('donationsMade');
     const donationsReceivedEl = document.getElementById('donationsReceived');
-    
+
     if (donationsMadeEl) donationsMadeEl.textContent = user.donationsMade || 0;
     if (donationsReceivedEl) donationsReceivedEl.textContent = user.donationsReceived || 0;
 
@@ -157,7 +157,7 @@ function displayProfileData(user) {
     const displayEmailEl = document.getElementById('displayEmail');
     const displayPhoneEl = document.getElementById('displayPhone');
     const displayLocationEl = document.getElementById('displayLocation');
-    
+
     if (displayNameEl) displayNameEl.textContent = user.name || '-';
     if (displayEmailEl) displayEmailEl.textContent = user.email || '-';
     if (displayPhoneEl) displayPhoneEl.textContent = user.phone || 'Not provided';
@@ -167,7 +167,7 @@ function displayProfileData(user) {
     const editNameEl = document.getElementById('editName');
     const editPhoneEl = document.getElementById('editPhone');
     const editLocationEl = document.getElementById('editLocation');
-    
+
     if (editNameEl) editNameEl.value = user.name || '';
     if (editPhoneEl) editPhoneEl.value = user.phone || '';
     if (editLocationEl) editLocationEl.value = user.location || '';
@@ -199,7 +199,7 @@ function setupEventListeners() {
   // Password modal close
   const closePwModal = document.getElementById('closePasswordModal');
   if (closePwModal) closePwModal.addEventListener('click', closePasswordModal);
-  
+
   const cancelPwBtn = document.getElementById('cancelPasswordBtn');
   if (cancelPwBtn) cancelPwBtn.addEventListener('click', closePasswordModal);
 
@@ -210,9 +210,22 @@ function setupEventListeners() {
   // Other buttons
   const twoFABtn = document.getElementById('enableTwoFABtn');
   if (twoFABtn) twoFABtn.addEventListener('click', enableTwoFA);
-  
+
   const deleteBtn = document.getElementById('deleteAccountBtn');
   if (deleteBtn) deleteBtn.addEventListener('click', deleteAccount);
+
+  // Logout button
+  const logoutBtn = document.querySelector('.logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Logout clicked');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = 'index.html';
+    });
+  }
 
   // Close modal when clicking outside
   window.addEventListener('click', (e) => {

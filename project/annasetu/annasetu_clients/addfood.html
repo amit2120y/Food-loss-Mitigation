@@ -31,7 +31,7 @@
                 <a href="browse.html" class="nav-link"><i class="fa fa-utensils"></i> Browse Food</a>
                 <a href="notifications.html" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
                 <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
-                <a href="index.html" class="nav-link logout">
+                <a href="#" class="nav-link logout">
                     <i class="fa fa-sign-out-alt"></i> Logout</a>
             </nav>
         </div>
@@ -50,39 +50,77 @@
 
                     <div class="form-grid">
 
-                        <input type="text" id="foodName" placeholder="Food Name" required>
-                        <input type="text" id="quantity" placeholder="Quantity" required>
+                        <div class="input-wrapper">
+                            <input type="text" id="foodName" placeholder=" " required>
+                            <label for="foodName">Food Name</label>
+                            <div class="input-highlight"></div>
+                            <span class="validation-icon"></span>
+                        </div>
 
-                        <input type="datetime-local" id="cookedTime" required>
+                        <div class="input-wrapper">
+                            <input type="text" id="quantity" placeholder=" " required>
+                            <label for="quantity">Quantity</label>
+                            <div class="input-highlight"></div>
+                            <span class="validation-icon"></span>
+                        </div>
 
-                        <select id="foodType" required>
-                            <option value="">Food Type</option>
-                            <option>Vegetarian</option>
-                            <option>Non-Veg</option>
-                            <option>Vegan</option>
-                        </select>
+                        <div class="input-wrapper">
+                            <input type="datetime-local" id="cookedTime" placeholder="dd-mm-yyyy" required>
+                            <label for="cookedTime" class="inside-label">Cooked Time</label>
+                            <div class="input-highlight"></div>
+                            <span class="validation-icon"></span>
+                        </div>
+
+                        <div class="input-wrapper">
+                            <select id="foodType" required>
+                                <option value="">Select Type</option>
+                                <option>Vegetarian</option>
+                                <option>Non-Veg</option>
+                                <option>Vegan</option>
+                            </select>
+                            <label for="foodType">Food Type</label>
+                            <div class="input-highlight"></div>
+                            <span class="validation-icon"></span>
+                        </div>
 
                     </div>
 
                     <!-- FULL WIDTH -->
                     <div class="form-grid">
 
-                        <textarea id="description"
-                            placeholder="Description... (e.g., Fresh cooked rice, Old moldy bread, Vegetables)"></textarea>
-                        <input type="text" id="location" placeholder="Pickup Location" required>
+                        <div class="input-wrapper full-width">
+                            <textarea id="description" placeholder=" "></textarea>
+                            <label for="description">Description</label>
+                            <div class="input-highlight"></div>
+                            <div class="char-count"><span id="charCount">0</span>/150</div>
+                        </div>
+
+                        <div class="input-wrapper full-width location-wrapper">
+                            <input type="text" id="location" placeholder=" " required>
+                            <label for="location">Pickup Location</label>
+                            <div class="input-highlight"></div>
+                            <span class="validation-icon"></span>
+                            <button type="button" class="btn-location" id="currentLocationBtn">Add current
+                                location</button>
+                        </div>
 
                     </div>
 
                     <!-- IMAGE -->
-                    <div class="upload-box" id="uploadBox">
-                        <i class="fa fa-cloud-upload-alt"></i>
-                        <p>Upload 2–4 Photos</p>
+                    <div class="upload-box-enhanced" id="uploadBox">
+                        <div class="upload-content">
+                            <i class="fa fa-cloud-upload-alt upload-icon"></i>
+                            <p class="upload-title">Drop photos here or click to upload</p>
+                            <p class="upload-subtitle">Upload 2–4 high-quality food photos</p>
+                        </div>
                         <input type="file" id="imageUpload" multiple accept="image/*">
                     </div>
 
-                    <div id="imageMsg"></div>
+                    <div id="imageMsg" class="image-status"></div>
 
-                    <div class="preview" id="preview"></div>
+                    <div class="preview-container">
+                        <div class="preview" id="preview"></div>
+                    </div>
 
                     <!-- AI ANALYSIS BUTTON -->
                     <div style="text-align: center; margin: 20px 0;">
@@ -143,11 +181,39 @@
         const msg = document.getElementById("imageMsg");
         const form = document.getElementById("foodForm");
         const donateBtn = form.querySelector('.btn-primary');
+        const uploadBox = document.getElementById("uploadBox");
 
         // shared images array accessible to submit handler
         let imagesData = [];
 
-        document.getElementById("uploadBox").onclick = () => upload.click();
+        // TEXTAREA CHARACTER COUNT
+        const description = document.getElementById("description");
+        description.addEventListener("input", (e) => {
+            const count = e.target.value.length;
+            document.getElementById("charCount").textContent = Math.min(count, 150);
+        });
+
+        // DRAG AND DROP
+        uploadBox.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadBox.classList.add("drag-over");
+        });
+
+        uploadBox.addEventListener("dragleave", (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove("drag-over");
+        });
+
+        uploadBox.addEventListener("drop", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadBox.classList.remove("drag-over");
+            upload.files = e.dataTransfer.files;
+            upload.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+
+        uploadBox.onclick = () => upload.click();
         // Prevent clicks on the native file input from bubbling up to the upload box
         upload.addEventListener('click', (e) => e.stopPropagation());
 
@@ -173,31 +239,70 @@
 
             if (files.length < 2) {
                 msg.innerHTML = "❌ Minimum 2 images required";
+                msg.classList.remove('success');
+                msg.classList.add('error');
                 return;
             }
 
             if (files.length > 4) {
                 msg.innerHTML = "❌ Maximum 4 images allowed";
+                msg.classList.remove('success');
+                msg.classList.add('error');
                 upload.value = "";
                 return;
             }
 
-            msg.innerHTML = "✅ Images selected";
+            msg.innerHTML = `✅ ${files.length} images selected`;
+            msg.classList.remove('error');
+            msg.classList.add('success');
 
             try {
                 // read all files and render previews
                 imagesData = await readFilesAsDataURLs(files);
-                imagesData.forEach(src => {
+                imagesData.forEach((src, index) => {
                     const img = document.createElement("img");
                     img.src = src;
                     img.classList.add("preview-img");
+                    img.style.animationDelay = `${index * 0.1}s`;
                     preview.appendChild(img);
                 });
             } catch (err) {
                 console.error('Failed to read images', err);
                 msg.innerHTML = '❌ Failed to read images';
+                msg.classList.remove('success');
+                msg.classList.add('error');
             }
 
+        });
+
+        // Current Location Button Handler
+        // TODO: Future integration with Google Maps API
+        document.getElementById('currentLocationBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const locationInput = document.getElementById('location');
+
+            // Check if Geolocation API is available
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser');
+                return;
+            }
+
+            // TODO: Replace this with actual Google Maps API call
+            // For now, just fetch coordinates and show a placeholder
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    // Placeholder: In future, use Google Maps Geocoding API to convert coordinates to address
+                    locationInput.value = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
+                    locationInput.focus();
+                    // Trigger validation
+                    locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+                },
+                (error) => {
+                    alert('Unable to get location: ' + error.message);
+                }
+            );
         });
 
         form.addEventListener("submit", async (e) => {
@@ -375,6 +480,8 @@
         });
 
     </script>
+
+    <script src="js/common-utils.js"></script>
 
 </body>
 

@@ -22,8 +22,7 @@
                 <a href="browse.html" class="nav-link active"><i class="fa fa-utensils"></i> Browse Food</a>
                 <a href="notifications.html" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
                 <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
-                <a href="index.html" class="nav-link logout"
-                    onclick="localStorage.removeItem('token');localStorage.removeItem('user');">
+                <a href="#" class="nav-link logout">
                     <i class="fa fa-sign-out-alt"></i> Logout</a>
             </nav>
         </div>
@@ -32,7 +31,7 @@
         <div class="main-content">
             <!-- HEADER -->
             <div class="header">
-                <h2 id="pageTitle">🥗 Browse Available Food</h2>
+                <h2 id="pageTitle">Browse Available Food</h2>
             </div>
 
             <!-- FILTERS & SEARCH -->
@@ -44,16 +43,16 @@
 
                 <div class="filter-buttons">
                     <button class="filter-btn active" data-filter="all">
-                        <i class="fa fa-list"></i> All
+                        All
                     </button>
                     <button class="filter-btn" data-filter="Vegetarian">
-                        <i class="fa fa-leaf"></i> Vegetarian
+                        Vegetarian
                     </button>
                     <button class="filter-btn" data-filter="Non-Veg">
-                        <i class="fa fa-drumstick-bite"></i> Non-Veg
+                        Non-Veg
                     </button>
                     <button class="filter-btn" data-filter="Vegan">
-                        <i class="fa fa-carrot"></i> Vegan
+                        Vegan
                     </button>
                 </div>
             </div>
@@ -113,6 +112,7 @@
         </div>
     </div>
 
+    <script src="js/common-utils.js"></script>
     <script src="js/browse.js"></script>
 </body>
 

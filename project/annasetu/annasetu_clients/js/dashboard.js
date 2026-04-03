@@ -159,17 +159,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('Failed to compute/update dashboard counts', err);
   }
 
-  // Logout handler (explicit only)
-  const logoutBtn = document.querySelector('.logout');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      console.log('Logout clicked');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = 'index.html';
-    });
-  }
-
   console.log('=== Dashboard Fully Loaded ===');
 });

@@ -18,10 +18,10 @@ function checkForGoogleToken() {
       name: decodeURIComponent(userName),
       email: decodeURIComponent(userEmail)
     }));
-    
+
     // Clear the URL parameters
     window.history.replaceState({}, document.title, window.location.pathname);
-    
+
     // Redirect to dashboard
     console.log('Redirecting to dashboard...');
     window.location.href = 'dashboard.html';
@@ -35,32 +35,22 @@ function checkForGoogleToken() {
 function handleCredentialResponse(response) {
   console.log("Google Sign-In successful");
   const token = response.credential;
-  
+
   // Redirect to the Google auth callback
   window.location.href = `http://localhost:5000/api/auth/google/callback?token=${token}`;
 }
 
 // Login Form Handler
-<<<<<<< Updated upstream
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Login page loaded');
-  
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("Login page loaded");
+
   // Check for Google token on page load FIRST
   if (checkForGoogleToken()) {
     return; // Exit if token was found and we're redirecting
   }
-  
-  const loginForm = document.querySelector('form');
-  console.log('Form found:', !!loginForm);
-  
-=======
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("Login page loaded");
 
   const loginForm = document.querySelector("form");
   console.log("Form found:", !!loginForm);
-
->>>>>>> Stashed changes
   if (loginForm) {
     console.log("Attaching submit event listener");
 
@@ -109,21 +99,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (response.ok) {
           // Store token in localStorage
-<<<<<<< Updated upstream
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("user", JSON.stringify(data.user));
+
           // Migrate old global donations to user-specific key if they exist
-          const oldDonations = localStorage.getItem('donations');
+          const oldDonations = localStorage.getItem("donations");
           if (oldDonations) {
             const userDonationsKey = `donations_${data.user.id}`;
             localStorage.setItem(userDonationsKey, oldDonations);
-            localStorage.removeItem('donations');
+            localStorage.removeItem("donations");
           }
-=======
-          localStorage.setItem("token", data.token);
-          localStorage.setItem("user", JSON.stringify(data.user));
->>>>>>> Stashed changes
 
           alert("Login successful! Redirecting to dashboard...");
           window.location.href = "dashboard.html";

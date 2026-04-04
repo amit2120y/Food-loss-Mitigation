@@ -33,6 +33,11 @@ const donationSchema = new mongoose.Schema({
     required: true
   },
 
+  coordinates: {
+    latitude: Number,
+    longitude: Number
+  },
+
   cookedTime: {
     type: Date,
     required: true

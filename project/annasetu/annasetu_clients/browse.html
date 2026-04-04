@@ -9,6 +9,36 @@
     <link rel="stylesheet" href="css/dashboard.css" />
     <link rel="stylesheet" href="css/browse.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        #foodDonationsMap {
+            height: 400px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            z-index: 1;
+        }
+
+        .map-toggle-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .map-toggle-btn:hover {
+            background: #45a049;
+        }
+
+        .map-container {
+            margin-bottom: 30px;
+        }
+    </style>
 </head>
 
 <body>
@@ -55,6 +85,12 @@
                         Vegan
                     </button>
                 </div>
+            </div>
+
+            <!-- MAP SECTION -->
+            <div class="map-container">
+                <button class="map-toggle-btn" id="mapToggleBtn">📍 Show Map</button>
+                <div id="foodDonationsMap" style="display: none;"></div>
             </div>
 
             <!-- LOADING STATE -->
@@ -113,6 +149,8 @@
     </div>
 
     <script src="js/common-utils.js"></script>
+    <!-- Leaflet.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="js/browse.js"></script>
 </body>
 

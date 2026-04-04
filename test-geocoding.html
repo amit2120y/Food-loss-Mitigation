@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geocoding Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .test-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .result.error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+
+        .console-log {
+            background: #333;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="test-box">
+        <h2>🗺️ Geocoding API Test</h2>
+
+        <label>Latitude:</label>
+        <input type="number" id="latitude" value="26.6291" step="0.0001">
+
+        <label>Longitude:</label>
+        <input type="number" id="longitude" value="75.0312" step="0.0001">
+
+        <button onclick="testGeocoding()">Test Geocoding</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <div class="console-log" id="console"></div>
+
+    <script>
+        // Redirect console.log to UI
+        const originalLog = console.log;
+        const consoleElement = document.getElementById('console');
+
+        console.log = function (...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg =>
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleElement.innerHTML += `<div>${message}</div>`;
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        };
+
+        console.error = function (...args) {
+            originalLog.error.apply(console, args);
+            const message = args.map(arg =>
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleElement.innerHTML += `<div style="color: #f44336;">❌ ${message}</div>`;
+        };
+
+        async function testGeocoding() {
+            const lat = parseFloat(document.getElementById('latitude').value);
+            const lng = parseFloat(document.getElementById('longitude').value);
+            const resultDiv = document.getElementById('result');
+
+            if (isNaN(lat) || isNaN(lng)) {
+                resultDiv.textContent = 'Please enter valid coordinates';
+                resultDiv.classList.add('error');
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            resultDiv.style.display = 'none';
+            consoleElement.innerHTML = '';
+
+            console.log(`🔍 Testing geocoding for: ${lat}, ${lng}`);
+
+            try {
+                console.log('📍 Using OpenStreetMap Nominatim...');
+
+                const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+                console.log(`URL: ${nominatimUrl}`);
+
+                const nominatimResponse = await fetch(nominatimUrl, {
+                    headers: { 'Accept-Language': 'en' }
+                });
+
+                console.log(`Response Status: ${nominatimResponse.status}`);
+
+                if (nominatimResponse.ok) {
+                    const nominatimData = await nominatimResponse.json();
+                    console.log('Full API Response:', nominatimData);
+
+                    if (nominatimData.display_name) {
+                        console.log('✅ Address found:', nominatimData.display_name);
+                        resultDiv.innerHTML = `
+                            <strong>✅ Success!</strong><br>
+                            <strong>Address:</strong> ${nominatimData.display_name}<br>
+                            <strong>Type:</strong> ${nominatimData.type || 'N/A'}
+                        `;
+                        resultDiv.classList.remove('error');
+                    } else {
+                        console.log('⚠️ No address found in response');
+                        resultDiv.innerHTML = '<strong>⚠️</strong> No address found for these coordinates';
+                        resultDiv.classList.add('error');
+                    }
+                } else {
+                    console.log('❌ API request failed');
+                    resultDiv.innerHTML = `<strong>❌</strong> API request failed with status ${nominatimResponse.status}`;
+                    resultDiv.classList.add('error');
+                }
+
+                resultDiv.style.display = 'block';
+            } catch (err) {
+                console.error('❌ Error:', err);
+                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${err.message}`;
+                resultDiv.classList.add('error');
+                resultDiv.style.display = 'block';
+            }
+        }
+
+        // Test on load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('✅ Test page loaded. Click "Test Geocoding" to start.');
+            console.log('Current coordinates: 26.6291, 75.0312 (Central University of Rajasthan, Ajmer)');
+        });
+    </script>
+</body>
+
+</html>

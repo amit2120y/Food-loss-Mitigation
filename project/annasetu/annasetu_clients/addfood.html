@@ -15,6 +15,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+
+    <style>
+        #locationMap {
+            height: 300px;
+            margin-top: 10px;
+            border-radius: 8px;
+            z-index: 1;
+        }
+    </style>
+
 </head>
 
 <body>
@@ -104,6 +116,9 @@
                                 location</button>
                         </div>
 
+                        <!-- Leaflet Map -->
+                        <div id="locationMap"></div>
+
                     </div>
 
                     <!-- IMAGE -->
@@ -139,30 +154,48 @@
                         <div id="analyzedItem"
                             style="background: #fafbf9; padding: 13px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; border-left: 4px solid #8b7355; color: #3d3d3d;">
                         </div>
-                        <div class="result-cards">
-                            <div class="result-card human">
-                                <div class="result-icon"><i class="fa fa-users" style="color: #2e7d32;"></i></div>
-                                <div class="result-content">
-                                    <h4>Human Consumption</h4>
-                                    <p id="humanResult">-</p>
-                                </div>
-                            </div>
-                            <div class="result-card cattle">
-                                <div class="result-icon"><i class="fa fa-leaf" style="color: #ff9800;"></i></div>
-                                <div class="result-content">
-                                    <h4>Animal Feed</h4>
-                                    <p id="cattleResult">-</p>
-                                </div>
-                            </div>
-                            <div class="result-card fertilizer">
-                                <div class="result-icon"><i class="fa fa-seedling" style="color: #2196f3;"></i></div>
-                                <div class="result-content">
-                                    <h4>Fertilizer</h4>
-                                    <p id="fertilizerResult">-</p>
-                                </div>
-                            </div>
+
+                        <!-- Category Decision -->
+                        <div id="categoryDecision"
+                            style="background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 16px; text-align: center;">
+                            <h4 style="margin: 0 0 10px 0; font-size: 16px;">Recommended For:</h4>
+                            <p id="categoryDisplay" style="margin: 0; font-size: 24px;"></p>
                         </div>
-                        <p class="ai-recommendation" id="aiRecommendation"></p>
+
+                        <!-- Recommendation -->
+                        <p class="ai-recommendation" id="aiRecommendation"
+                            style="background: #f5f5f5; padding: 12px; border-radius: 6px; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+                        </p>
+
+                        <!-- Optional: Percentage Breakdown (hidden by default) -->
+                        <details style="margin-bottom: 16px; cursor: pointer;">
+                            <summary style="padding: 8px; background: #f0f0f0; border-radius: 6px; font-weight: 500;">
+                                View Suitability Details</summary>
+                            <div class="result-cards" style="margin-top: 12px;">
+                                <div class="result-card human">
+                                    <div class="result-icon"><i class="fa fa-users" style="color: #2e7d32;"></i></div>
+                                    <div class="result-content">
+                                        <h4>Human Consumption</h4>
+                                        <p id="humanResult">-</p>
+                                    </div>
+                                </div>
+                                <div class="result-card cattle">
+                                    <div class="result-icon"><i class="fa fa-leaf" style="color: #ff9800;"></i></div>
+                                    <div class="result-content">
+                                        <h4>Animal Feed</h4>
+                                        <p id="cattleResult">-</p>
+                                    </div>
+                                </div>
+                                <div class="result-card fertilizer">
+                                    <div class="result-icon"><i class="fa fa-seedling" style="color: #2196f3;"></i>
+                                    </div>
+                                    <div class="result-content">
+                                        <h4>Fertilizer</h4>
+                                        <p id="fertilizerResult">-</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
                     </div>
 
                     <button type="submit" class="btn-primary">Donate Food</button>
@@ -185,6 +218,8 @@
 
         // shared images array accessible to submit handler
         let imagesData = [];
+        // Store AI analysis result to include in donation
+        let aiAnalysisResult = null;
 
         // TEXTAREA CHARACTER COUNT
         const description = document.getElementById("description");
@@ -275,12 +310,17 @@
 
         });
 
-        // Current Location Button Handler
-        // TODO: Future integration with Google Maps API
+        // Current Location Button Handler with Google Maps Geocoding API
+        // Leaflet map instance (global)
+        let locationMap = null;
+        let locationMarker = null;
+
         document.getElementById('currentLocationBtn').addEventListener('click', async (e) => {
             e.preventDefault();
 
             const locationInput = document.getElementById('location');
+            const locationMapDiv = document.getElementById('locationMap');
+            const btn = document.getElementById('currentLocationBtn');
 
             // Check if Geolocation API is available
             if (!navigator.geolocation) {
@@ -288,22 +328,154 @@
                 return;
             }
 
-            // TODO: Replace this with actual Google Maps API call
-            // For now, just fetch coordinates and show a placeholder
+            btn.disabled = true;
+            btn.textContent = 'Getting location...';
+
             navigator.geolocation.getCurrentPosition(
-                (position) => {
+                async (position) => {
                     const { latitude, longitude } = position.coords;
-                    // Placeholder: In future, use Google Maps Geocoding API to convert coordinates to address
-                    locationInput.value = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
-                    locationInput.focus();
-                    // Trigger validation
-                    locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+                    try {
+                        // Store coordinates for later use (distance calculation)
+                        window.currentCoordinates = { latitude, longitude };
+
+                        // Initialize Leaflet map if not already done
+                        if (!locationMap) {
+                            locationMap = L.map('locationMap').setView([latitude, longitude], 15);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© OpenStreetMap contributors',
+                                maxZoom: 19
+                            }).addTo(locationMap);
+                        } else {
+                            locationMap.setView([latitude, longitude], 15);
+                        }
+
+                        // Remove old marker if exists
+                        if (locationMarker) {
+                            locationMap.removeLayer(locationMarker);
+                        }
+
+                        // Add marker at current location
+                        locationMarker = L.marker([latitude, longitude], {
+                            draggable: true,
+                            title: 'Drag to adjust location'
+                        }).addTo(locationMap);
+
+                        // Update coordinates when marker is dragged
+                        locationMarker.on('dragend', function () {
+                            const latLng = locationMarker.getLatLng();
+                            window.currentCoordinates = {
+                                latitude: latLng.lat,
+                                longitude: latLng.lng
+                            };
+                            updateLocationAddress(latLng.lat, latLng.lng);
+                        });
+
+                        // Update address on map
+                        updateLocationAddress(latitude, longitude);
+
+                        // Show map
+                        locationMapDiv.style.display = 'block';
+
+                    } catch (err) {
+                        console.error('Location error:', err);
+                        alert('Error processing location: ' + err.message);
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = 'Add current location';
+                    }
                 },
                 (error) => {
                     alert('Unable to get location: ' + error.message);
+                    btn.disabled = false;
+                    btn.textContent = 'Add current location';
                 }
             );
         });
+
+        // Helper function to update address from coordinates
+        async function updateLocationAddress(latitude, longitude) {
+            const locationInput = document.getElementById('location');
+
+            console.log(`🔍 Geocoding coordinates: ${latitude}, ${longitude}`);
+
+            try {
+                // Use OpenStreetMap Nominatim (FREE, no API key required, no rate limiting issues)
+                console.log('📍 Using OpenStreetMap Nominatim for address lookup...');
+
+                const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+                const nominatimResponse = await fetch(nominatimUrl, {
+                    headers: { 'Accept-Language': 'en' }
+                });
+
+                if (nominatimResponse.ok) {
+                    const nominatimData = await nominatimResponse.json();
+
+                    if (nominatimData.address) {
+                        // Build address from OSM components (most readable format)
+                        const addr = nominatimData.address;
+                        const addressParts = [];
+
+                        // Prefer village/town/suburb as starting point
+                        if (addr.village) {
+                            addressParts.push(addr.village);
+                        } else if (addr.town) {
+                            addressParts.push(addr.town);
+                        } else if (addr.suburb) {
+                            addressParts.push(addr.suburb);
+                        } else if (addr.neighbourhood) {
+                            addressParts.push(addr.neighbourhood);
+                        }
+
+                        // Add street address if available
+                        if (addr.road) {
+                            addressParts.unshift(addr.road);
+                        }
+
+                        // Add city/district
+                        if (addr.city) {
+                            addressParts.push(addr.city);
+                        } else if (addr.county) {
+                            addressParts.push(addr.county);
+                        }
+
+                        // Add state and postcode
+                        if (addr.state) {
+                            addressParts.push(addr.state);
+                        }
+
+                        if (addr.postcode) {
+                            addressParts.push(addr.postcode);
+                        }
+
+                        if (addressParts.length > 0) {
+                            const fullAddress = addressParts.join(', ');
+                            console.log('✅ Address found (OpenStreetMap):', fullAddress);
+                            locationInput.value = fullAddress;
+                            return;
+                        }
+                    }
+
+                    // If address object doesn't have the expected structure, use display_name
+                    if (nominatimData.display_name) {
+                        console.log('✅ Address found (OSM display_name):', nominatimData.display_name);
+                        locationInput.value = nominatimData.display_name;
+                        return;
+                    }
+                }
+
+                console.warn('⚠️ OpenStreetMap lookup failed. Using coordinates instead.');
+                locationInput.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+
+            } catch (err) {
+                console.error('❌ Geocoding error:', err);
+                // Fallback to coordinates
+                locationInput.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            }
+
+            locationInput.focus();
+            locationInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
 
         form.addEventListener("submit", async (e) => {
 
@@ -351,7 +523,9 @@
                 images: imagesData.slice(),
                 status: 'Available',
                 userId: currentUserId,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                aiAnalysis: aiAnalysisResult,  // Include AI analysis if available
+                coordinates: window.currentCoordinates || null  // Include coordinates if available
             };
 
             // Save to database instead of localStorage
@@ -387,7 +561,7 @@
                 console.log('Donation API Response:', data);
 
                 if (response.ok) {
-                    alert('✅ Donation saved successfully!');
+                    alert('Donation saved successfully!');
                     window.location.href = "dashboard.html";
                 } else {
                     alert('Error saving donation: ' + (data.message || 'Unknown error'));
@@ -452,6 +626,15 @@
                 if (response.ok && data.analysis) {
                     const analysis = data.analysis;
 
+                    // Store AI analysis result for donation submission
+                    aiAnalysisResult = {
+                        human: analysis.human,
+                        cattle: analysis.cattle,
+                        fertilizer: analysis.fertilizer,
+                        recommendation: analysis.recommendation,
+                        best_category: data.category?.category || 'human'
+                    };
+
                     // Show what was analyzed
                     if (description) {
                         document.getElementById("analyzedItem").innerHTML = `<strong>Food Description:</strong> "${description}"`;
@@ -459,11 +642,29 @@
                         document.getElementById("analyzedItem").innerHTML = `<strong>Images Analyzed:</strong> ${imagesData.length} images provided`;
                     }
 
-                    // Display results
-                    document.getElementById("humanResult").textContent = `${analysis.human}% suitable`;
-                    document.getElementById("cattleResult").textContent = `${analysis.cattle}% suitable`;
-                    document.getElementById("fertilizerResult").textContent = `${analysis.fertilizer}% suitable`;
+                    // Category information mapping
+                    const categoryInfo = {
+                        human: { emoji: '🧑', label: 'Human Consumption' },
+                        cattle: { emoji: '🐄', label: 'Animal Feed' },
+                        compost: { emoji: '🌱', label: 'Organic Compost' }
+                    };
+
+                    // Display category decision (emoji + label only)
+                    const bestCategory = data.category?.category || 'human';
+                    const cat = categoryInfo[bestCategory];
+                    document.getElementById("categoryDisplay").textContent = `${cat?.emoji || '🧑'} ${cat?.label || 'Human Consumption'}`;
+
+                    // Display AI recommendation explaining the category decision
                     document.getElementById("aiRecommendation").textContent = analysis.recommendation;
+
+                    // Show suitability status based on percentage threshold (>50% = suitable, <=50% = not suitable)
+                    const getSuitabilityStatus = (percentage) => {
+                        return percentage > 50 ? 'Suitable ✓' : 'Not Suitable ✗';
+                    };
+
+                    document.getElementById("humanResult").textContent = getSuitabilityStatus(analysis.human);
+                    document.getElementById("cattleResult").textContent = getSuitabilityStatus(analysis.cattle);
+                    document.getElementById("fertilizerResult").textContent = getSuitabilityStatus(analysis.fertilizer);
 
                     aiResults.style.display = "block";
                     console.log("✓ AI analysis complete");
@@ -480,6 +681,9 @@
         });
 
     </script>
+
+    <!-- Leaflet.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
     <script src="js/common-utils.js"></script>
 

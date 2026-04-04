@@ -4,6 +4,33 @@ let filteredDonations = [];
 let selectedDonation = null;
 let currentFilter = 'all';
 let searchTimeout = null; // For debouncing search
+let userCoordinates = null; // Store user's current coordinates for distance calculation
+
+// Promise to wait for geolocation
+function getGeolocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.warn('⚠️ Geolocation not supported');
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        userCoordinates = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        console.log('✓ User location obtained:', userCoordinates);
+        resolve(userCoordinates);
+      },
+      (error) => {
+        console.warn('⚠️ Could not get user location:', error.message);
+        resolve(null); // Still resolve, so page loads
+      }
+    );
+  });
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== Browse Page Loaded ===');
@@ -23,11 +50,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   console.log(`✓ User authenticated: ${user.name}`);
 
+  // Get user's current location BEFORE loading donations
+  console.log('📍 Requesting user location...');
+  await getGeolocation();
+  console.log('📍 Location ready. User coordinates:', userCoordinates);
+
   // Load available donations
   await loadDonations();
 
   // Setup filter buttons
   setupFilterButtons();
+
+  // Setup map toggle button
+  setupMapToggle();
 
   // Setup search input with debouncing
   const searchInput = document.getElementById('searchInput');
@@ -101,6 +136,53 @@ async function loadDonations() {
   }
 }
 
+// Calculate distance between two coordinates using Haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+}
+
+// Get distance text for donation card
+function getDistanceText(donation) {
+  if (!userCoordinates) {
+    console.warn('⚠️ User coordinates not available yet');
+    return 'Distance N/A';
+  }
+
+  if (!donation.coordinates) {
+    console.warn('⚠️ Donation coordinates missing:', donation.food);
+    return 'Distance N/A';
+  }
+
+  try {
+    const distance = calculateDistance(
+      userCoordinates.latitude,
+      userCoordinates.longitude,
+      donation.coordinates.latitude,
+      donation.coordinates.longitude
+    );
+
+    if (isNaN(distance)) {
+      console.warn('⚠️ Invalid distance calculation for:', donation.food);
+      return 'Distance N/A';
+    }
+
+    return `${distance.toFixed(1)} km away`;
+  } catch (err) {
+    console.warn('❌ Distance calculation error for', donation.food, ':', err);
+    return 'Distance N/A';
+  }
+}
+
 // Display donations in grid with optimized rendering
 function displayDonations(donations) {
   const grid = document.getElementById('donationsGrid');
@@ -170,13 +252,15 @@ function createDonationCard(donation) {
       </div>
 
       <div class="card-content">
-        <div class="food-name">${donation.food}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div class="food-name">${donation.food}</div>
+          ${qualityTag}
+        </div>
 
         <div class="food-meta">
           <span class="badge ${donation.foodType.toLowerCase().replace('-', '-')}">
             ${foodIcon} ${donation.foodType}
           </span>
-          ${qualityTag}
         </div>
 
         <div class="food-info">
@@ -190,11 +274,7 @@ function createDonationCard(donation) {
           </div>
           <div class="info-item">
             <i class="fa fa-map-marker-alt"></i>
-            <span>${donorLocation}</span>
-          </div>
-          <div class="info-item">
-            <i class="fa fa-clock"></i>
-            <span>${donation.cookedTime ? 'Fresh' : 'N/A'}</span>
+            <span>${getDistanceText(donation)}</span>
           </div>
         </div>
 
@@ -203,7 +283,11 @@ function createDonationCard(donation) {
           <div class="donor-location">📍 ${donorLocation}</div>
         </div>
 
-        ${donation.description ? `
+        ${donation.aiAnalysis?.recommendation ? `
+          <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            <strong>AI Analysis:</strong> ${donation.aiAnalysis.recommendation.substring(0, 80)}...
+          </p>
+        ` : donation.description ? `
           <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
             <strong>Description:</strong> ${donation.description.substring(0, 80)}...
           </p>
@@ -228,11 +312,11 @@ function createDonationCard(donation) {
 // Get food type emoji
 function getFoodIcon(foodType) {
   const icons = {
-    'Vegetarian': '🥬',
-    'Non-Veg': '🍗',
-    'Vegan': '🌱'
+    'Vegetarian': '',
+    'Non-Veg': '',
+    'Vegan': ''
   };
-  return icons[foodType] || '🍽️';
+  return icons[foodType] || '';
 }
 
 // Get quality badge for AI analysis (with caching)
@@ -240,18 +324,29 @@ const qualityTagCache = {};
 function getQualityTag(aiAnalysis) {
   if (!aiAnalysis) return '';
 
-  const cacheKey = `${aiAnalysis.human}`;
+  const cacheKey = `${aiAnalysis.human}_${aiAnalysis.cattle}_${aiAnalysis.fertilizer}`;
   if (qualityTagCache[cacheKey]) return qualityTagCache[cacheKey];
 
   const human = aiAnalysis.human || 0;
-  let tag = '';
-  if (human >= 70) {
-    tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">✅ High Quality</span>';
-  } else if (human >= 40) {
-    tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">⚠️ Fair Quality</span>';
+  const cattle = aiAnalysis.cattle || 0;
+  const fertilizer = aiAnalysis.fertilizer || 0;
+
+  // Find which category it's most suitable for
+  let suitability = '';
+  let bgColor = '';
+
+  if (human > cattle && human > fertilizer) {
+    suitability = 'Suitable for: Human Consumption';
+    bgColor = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+  } else if (cattle > human && cattle > fertilizer) {
+    suitability = 'Suitable for: Animal Feed';
+    bgColor = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
   } else {
-    tag = '<span class="ai-tag" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">❌ Low Quality</span>';
+    suitability = 'Suitable for: Fertilizer';
+    bgColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
   }
+
+  const tag = `<span class="ai-tag" style="background: ${bgColor}; white-space: nowrap; padding: 4px 10px; border-radius: 10px; font-size: 15px; color: white; font-weight: 500;">${suitability}</span>`;
 
   qualityTagCache[cacheKey] = tag;
   return tag;
@@ -384,6 +479,139 @@ function closeModal() {
   modalCache.hide();
   selectedDonation = null;
 }
+
+// Setup map toggle and initialization
+let donationMap = null;
+let mapMarkers = [];
+
+function setupMapToggle() {
+  const toggleBtn = document.getElementById('mapToggleBtn');
+  const mapDiv = document.getElementById('foodDonationsMap');
+
+  if (!toggleBtn || !mapDiv) return;
+
+  toggleBtn.addEventListener('click', () => {
+    if (mapDiv.style.display === 'none') {
+      mapDiv.style.display = 'block';
+      toggleBtn.textContent = '📍 Hide Map';
+
+      // Initialize map if not already done
+      if (!donationMap) {
+        initializeDonationMap();
+      } else {
+        // Refresh map bounds if already initialized
+        donationMap.invalidateSize();
+        updateMapMarkers();
+      }
+    } else {
+      mapDiv.style.display = 'none';
+      toggleBtn.textContent = '📍 Show Map';
+    }
+  });
+}
+
+// Initialize Leaflet map with donations
+function initializeDonationMap() {
+  const mapDiv = document.getElementById('foodDonationsMap');
+  if (!mapDiv || donationMap) return;
+
+  // Get default center (user location or default coordinates)
+  const centerLat = userCoordinates?.latitude || 28.6139; // Default: Delhi
+  const centerLng = userCoordinates?.longitude || 77.2090;
+
+  // Create map
+  donationMap = L.map('foodDonationsMap').setView([centerLat, centerLng], 12);
+
+  // Add tile layer (OpenStreetMap)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(donationMap);
+
+  // Add user location marker
+  if (userCoordinates) {
+    L.circleMarker([centerLat, centerLng], {
+      radius: 8,
+      fillColor: '#007bff',
+      color: '#0056b3',
+      weight: 3,
+      opacity: 0.8,
+      fillOpacity: 0.8,
+      title: 'Your Location'
+    }).addTo(donationMap).bindPopup('📍 Your Location');
+  }
+
+  // Add donation markers
+  updateMapMarkers();
+}
+
+// Update map markers based on filtered donations
+function updateMapMarkers() {
+  if (!donationMap) return;
+
+  // Remove existing donation markers
+  mapMarkers.forEach(marker => {
+    donationMap.removeLayer(marker);
+  });
+  mapMarkers = [];
+
+  // Add markers for each donation
+  filteredDonations.forEach(donation => {
+    if (!donation.coordinates || !donation.coordinates.latitude) return;
+
+    const { latitude, longitude } = donation.coordinates;
+    const suitability = getQualityTag(donation.aiAnalysis, donation.cookedTime);
+
+    // Color code by category
+    let markerColor = '#4CAF50'; // Default: green (human consumption)
+    if (suitability.includes('Animal Feed')) {
+      markerColor = '#FF9800'; // Orange
+    } else if (suitability.includes('Fertilizer')) {
+      markerColor = '#2196F3'; // Blue
+    }
+
+    const marker = L.circleMarker([latitude, longitude], {
+      radius: 10,
+      fillColor: markerColor,
+      color: '#333',
+      weight: 2,
+      opacity: 0.8,
+      fillOpacity: 0.7,
+      title: donation.food
+    }).addTo(donationMap);
+
+    // Create popup content
+    const popupContent = `
+      <div style="min-width: 180px; font-size: 12px;">
+        <strong>${donation.food}</strong><br>
+        ${suitability}<br>
+        Qty: ${donation.quantity}<br>
+        <small style="color: #666;">${(donation.coordinates.latitude.toFixed(4))}, ${(donation.coordinates.longitude.toFixed(4))}</small>
+      </div>
+    `;
+
+    marker.bindPopup(popupContent);
+    mapMarkers.push(marker);
+  });
+
+  // Auto-zoom to fit all markers
+  if (mapMarkers.length > 0) {
+    const group = new L.featureGroup(mapMarkers);
+    donationMap.fitBounds(group.getBounds().pad(0.1));
+  }
+}
+
+// Override displayDonations to also update map
+const originalDisplayDonations = displayDonations;
+displayDonations = function (donations) {
+  originalDisplayDonations.call(this, donations);
+
+  // Update map markers if map is visible
+  const mapDiv = document.getElementById('foodDonationsMap');
+  if (mapDiv && mapDiv.style.display !== 'none') {
+    updateMapMarkers();
+  }
+};
 
 // Handle form submission
 document.addEventListener('submit', async (e) => {

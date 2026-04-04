@@ -24,7 +24,7 @@ exports.createDonation = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const { food, quantity, foodType, description, location, cookedTime, images, aiAnalysis } = req.body;
+    const { food, quantity, foodType, description, location, cookedTime, images, aiAnalysis, coordinates } = req.body;
 
     // Validate required fields
     if (!food || !quantity || !foodType || !description || !location || !cookedTime) {
@@ -35,7 +35,7 @@ exports.createDonation = async (req, res) => {
       if (!description) missing.push("description");
       if (!location) missing.push("location");
       if (!cookedTime) missing.push("cookedTime");
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Missing required fields: " + missing.join(", "),
         missingFields: missing
       });
@@ -65,6 +65,7 @@ exports.createDonation = async (req, res) => {
       foodType,
       description,
       location,
+      coordinates: coordinates || null,
       cookedTime: parsedCookedTime,
       images: images || [],
       aiAnalysis: aiAnalysis || null,
@@ -85,8 +86,8 @@ exports.createDonation = async (req, res) => {
 
   } catch (error) {
     console.error("Error creating donation:", error);
-    res.status(500).json({ 
-      message: "Failed to create donation", 
+    res.status(500).json({
+      message: "Failed to create donation",
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
@@ -118,7 +119,7 @@ exports.getUserDonations = async (req, res) => {
       .sort({ createdAt: -1 }); // Latest first
 
     console.log(`✓ Fetched ${donations.length} donations for user: ${user.email}`);
-    
+
     // Log details for debugging
     if (donations.length === 0) {
       console.log(`[DEBUG] User ${user._id} has no donations`);
@@ -168,7 +169,7 @@ exports.getAllDonations = async (req, res) => {
     }
 
     // Get only "Available" donations, excluding the current user's donations
-    const donations = await Donation.find({ 
+    const donations = await Donation.find({
       status: "Available",
       userId: { $ne: user._id }  // Exclude current user's donations
     })

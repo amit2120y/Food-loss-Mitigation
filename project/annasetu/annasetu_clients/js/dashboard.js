@@ -1,4 +1,32 @@
 // Dashboard Protection and User Display
+let userCoordinates = null; // Store user's location for distance calculation
+
+// Promise to wait for geolocation
+function getGeolocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.warn('⚠️ Geolocation not supported');
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        userCoordinates = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        console.log('✓ User location obtained:', userCoordinates);
+        resolve(userCoordinates);
+      },
+      (error) => {
+        console.warn('⚠️ Could not get user location:', error.message);
+        resolve(null);
+      }
+    );
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== Dashboard Page Loaded ===');
 
@@ -32,6 +60,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Update welcome
   const pageTitle = document.getElementById('pageTitle');
   if (pageTitle) pageTitle.textContent = `Welcome Back, ${user.name || 'User'}!`;
+
+  // Get user's location for distance calculation
+  console.log('📍 Requesting user location...');
+  await getGeolocation();
+  console.log('📍 Location ready. User coordinates:', userCoordinates);
 
   // Try to fetch user stats (non-fatal)
   try {
@@ -120,6 +153,57 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       table.appendChild(tr);
     });
+  }
+
+  // Render available food from other users (Receiver section)
+  const receiverTable = document.querySelector('#receiverSection table');
+  if (receiverTable) {
+    const rows = receiverTable.querySelectorAll('tr');
+    rows.forEach((r, i) => { if (i > 0) r.remove(); });
+
+    availableDonations.forEach(d => {
+      const tr = document.createElement('tr');
+
+      // Calculate distance if location available
+      let distance = 'N/A';
+      if (userCoordinates && d.coordinates) {
+        try {
+          const dist = calculateDistance(
+            userCoordinates.latitude,
+            userCoordinates.longitude,
+            d.coordinates.latitude,
+            d.coordinates.longitude
+          );
+          distance = getFormattedDistance(dist);
+        } catch (err) {
+          console.warn('❌ Distance calculation error for', d.food, ':', err);
+          distance = 'N/A';
+        }
+      } else if (!userCoordinates) {
+        console.warn('⚠️ User coordinates not available for distance calculation');
+      } else if (!d.coordinates) {
+        console.warn('⚠️ Donation coordinates missing:', d.food);
+      }
+
+      tr.innerHTML = `
+        <td>${d.food || d.foodName || '-'}</td>
+        <td>${d.quantity || d.qty || '-'}</td>
+        <td>${distance}</td>
+        <td><button class="btn-request" onclick="alert('Request feature coming soon')">Request</button></td>
+      `;
+      receiverTable.appendChild(tr);
+    });
+
+    // If no available donations, show message
+    if (availableDonations.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td colspan="4" style="text-align: center; padding: 20px; color: #999;">
+          No available food from other users at the moment. Check back later!
+        </td>
+      `;
+      receiverTable.appendChild(tr);
+    }
   }
 
   // Compute dashboard counts and update stat cards

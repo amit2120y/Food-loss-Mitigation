@@ -157,9 +157,20 @@
                         <label for="claimAddress">
                             <i class="fa fa-map-marker"></i> Delivery/Pickup Address <span style="color: red;">*</span>
                         </label>
-                        <textarea id="claimAddress" name="address" rows="2"
-                            placeholder="Enter full address where you'll receive/pickup the food" required
-                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;"></textarea>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <textarea id="claimAddress" name="address" rows="2"
+                                placeholder="Enter full address where you'll receive/pickup the food" required
+                                style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;"></textarea>
+                            <button type="button" id="claimCurrentLocationBtn" class="btn"
+                                style="padding: 10px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; white-space: nowrap; align-self: flex-end; font-size: 12px; height: fit-content;">
+                                📍 Use Current Location
+                            </button>
+                        </div>
+                        <small id="claimLocationStatus" style="color: #666;"></small>
+                        <!-- Map for claim location -->
+                        <div id="claimLocationMap"
+                            style="height: 250px; margin-top: 10px; border-radius: 8px; display: none; z-index: 1;">
+                        </div>
                     </div>
 
                     <!-- Preferred Pickup Time -->

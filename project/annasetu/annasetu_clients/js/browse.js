@@ -759,3 +759,253 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ===== CLAIM LOCATION FUNCTIONALITY =====
+// Leaflet map instance for claim location
+let claimLocationMap = null;
+let claimLocationMarker = null;
+
+// Handle "Use Current Location" button for claim form
+document.addEventListener('DOMContentLoaded', () => {
+  const claimLocationBtn = document.getElementById('claimCurrentLocationBtn');
+
+  if (claimLocationBtn) {
+    claimLocationBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+
+      const addressField = document.getElementById('claimAddress');
+      const statusEl = document.getElementById('claimLocationStatus');
+      const mapDiv = document.getElementById('claimLocationMap');
+      const btn = e.target;
+
+      // Check if Geolocation API is available
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '📍 Getting location...';
+      statusEl.textContent = '📍 Acquiring precise location...';
+
+      // Use high accuracy options for better precision
+      const options = {
+        enableHighAccuracy: true,      // Request high accuracy (uses GPS if available)
+        timeout: 10000,                 // Wait up to 10 seconds for GPS
+        maximumAge: 0                   // Don't use cached position, get fresh data
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+
+          try {
+            // Store coordinates for later use
+            window.claimCoordinates = { latitude, longitude };
+
+            // Initialize Leaflet map if not already done
+            if (!claimLocationMap) {
+              claimLocationMap = L.map('claimLocationMap').setView([latitude, longitude], 18);
+
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+              }).addTo(claimLocationMap);
+            } else {
+              claimLocationMap.setView([latitude, longitude], 18);
+            }
+
+            // Add accuracy circle to show precision range
+            const accuracyCircle = L.circle([latitude, longitude], {
+              radius: accuracy,
+              color: '#007bff',
+              fill: true,
+              fillColor: '#007bff',
+              fillOpacity: 0.1,
+              weight: 2,
+              dashArray: '5, 5'
+            }).addTo(claimLocationMap);
+
+            // Display accuracy info
+            const accuracyText = accuracy < 10 ? 'Very High' :
+              accuracy < 50 ? 'High' :
+                accuracy < 100 ? 'Medium' : 'Low';
+            statusEl.textContent = `✓ Location obtained (Accuracy: ${Math.round(accuracy)}m - ${accuracyText}). You can drag the marker to adjust.`;
+            console.log(`📍 Location accuracy: ${accuracy.toFixed(2)}m (${accuracyText})`);
+
+            // Remove old marker if exists
+            if (claimLocationMarker) {
+              claimLocationMap.removeLayer(claimLocationMarker);
+            }
+
+            // Add marker at current location (draggable)
+            claimLocationMarker = L.marker([latitude, longitude], {
+              draggable: true,
+              title: 'Drag to adjust location'
+            }).addTo(claimLocationMap);
+
+            // Update coordinates when marker is dragged
+            claimLocationMarker.on('dragend', function () {
+              const latLng = claimLocationMarker.getLatLng();
+              window.claimCoordinates = {
+                latitude: latLng.lat,
+                longitude: latLng.lng
+              };
+              // Remove old accuracy circle
+              claimLocationMap.eachLayer(layer => {
+                if (layer instanceof L.Circle && layer !== claimLocationMarker) {
+                  claimLocationMap.removeLayer(layer);
+                }
+              });
+              updateClaimLocationAddress(latLng.lat, latLng.lng);
+            });
+
+            // Update address on map
+            await updateClaimLocationAddress(latitude, longitude);
+
+            // Show map
+            mapDiv.style.display = 'block';
+            statusEl.textContent = '✓ Location obtained. You can drag the marker to adjust.';
+
+          } catch (err) {
+            console.error('Location error:', err);
+            statusEl.textContent = '❌ Error processing location';
+            alert('Error processing location: ' + err.message);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = '📍 Use Current Location';
+          }
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+
+          // Handle different error types
+          let errorMsg = '';
+          if (error.code === error.PERMISSION_DENIED) {
+            errorMsg = 'Location permission denied. Please enable location access in browser settings.';
+            statusEl.textContent = '❌ Location permission denied';
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            errorMsg = 'Location information is unavailable. Please try again or enable GPS.';
+            statusEl.textContent = '❌ GPS signal not available - try outdoors';
+          } else if (error.code === error.TIMEOUT) {
+            errorMsg = 'Location request timed out. Please try again with better GPS signal.';
+            statusEl.textContent = '⏱️ Location timeout - move to open area with better sky view';
+          } else {
+            errorMsg = 'Unable to get location: ' + error.message;
+            statusEl.textContent = '❌ Location acquisition failed';
+          }
+
+          alert(errorMsg);
+          btn.disabled = false;
+          btn.textContent = '📍 Use Current Location';
+        },
+        options
+      );
+    });
+  }
+});
+
+// Helper function to update address from coordinates for claim form
+async function updateClaimLocationAddress(latitude, longitude) {
+  const addressField = document.getElementById('claimAddress');
+  const statusEl = document.getElementById('claimLocationStatus');
+
+  console.log(`🔍 Geocoding coordinates for claim: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+
+  try {
+    // Use OpenStreetMap Nominatim with zoom level 18 for higher precision (building/house level)
+    console.log('📍 Using OpenStreetMap Nominatim for high-precision address lookup (zoom 18)...');
+
+    // Format coordinates with 6 decimal places for better precision (~0.1m accuracy)
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18`;
+    const nominatimResponse = await fetch(nominatimUrl, {
+      headers: { 'Accept-Language': 'en' }
+    });
+
+    if (nominatimResponse.ok) {
+      const nominatimData = await nominatimResponse.json();
+
+      if (nominatimData.address) {
+        // Build address from OSM components with more detailed info
+        const addr = nominatimData.address;
+        const addressParts = [];
+
+        // Log raw address data for debugging
+        console.log('📍 Raw address data from Nominatim:', addr);
+
+        // Add house number if available
+        if (addr.house_number) {
+          addressParts.push(addr.house_number);
+        }
+
+        // Add street address if available (but avoid highways)
+        if (addr.road && !addr.road.toLowerCase().includes('expressway') && !addr.road.toLowerCase().includes('highway')) {
+          addressParts.push(addr.road);
+        }
+
+        // Prefer specific location names: college, university, building, etc.
+        if (addr.amenity) {
+          addressParts.push(addr.amenity);
+        } else if (addr.building) {
+          addressParts.push(addr.building);
+        }
+
+        // Prefer village/town/suburb as starting point
+        if (addr.village) {
+          addressParts.push(addr.village);
+        } else if (addr.town) {
+          addressParts.push(addr.town);
+        } else if (addr.suburb) {
+          addressParts.push(addr.suburb);
+        } else if (addr.neighbourhood) {
+          addressParts.push(addr.neighbourhood);
+        }
+
+        // Add city/district
+        if (addr.city) {
+          addressParts.push(addr.city);
+        } else if (addr.county) {
+          addressParts.push(addr.county);
+        }
+
+        // Add state and postcode
+        if (addr.state) {
+          addressParts.push(addr.state);
+        }
+
+        if (addr.postcode) {
+          addressParts.push(addr.postcode);
+        }
+
+        if (addressParts.length > 0) {
+          const fullAddress = addressParts.join(', ');
+          console.log('✅ Address found (OpenStreetMap):', fullAddress);
+          addressField.value = fullAddress;
+          statusEl.textContent = '✓ Address loaded from your location';
+          return;
+        }
+      }
+
+      // Fallback to display_name
+      if (nominatimData.display_name) {
+        console.log('✅ Address found (OSM display_name):', nominatimData.display_name);
+        addressField.value = nominatimData.display_name;
+        statusEl.textContent = '✓ Address loaded from your location';
+        return;
+      }
+    }
+
+    console.warn('⚠️ OpenStreetMap lookup failed. Using coordinates instead.');
+    addressField.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    statusEl.textContent = '⚠️ Using coordinates as fallback';
+
+  } catch (err) {
+    console.error('❌ Geocoding error:', err);
+    // Fallback to coordinates
+    addressField.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    statusEl.textContent = '⚠️ Using coordinates as fallback';
+  }
+
+  addressField.focus();
+  addressField.dispatchEvent(new Event('input', { bubbles: true }));
+}
+

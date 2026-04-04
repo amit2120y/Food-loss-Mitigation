@@ -332,9 +332,16 @@
             btn.disabled = true;
             btn.textContent = 'Getting location...';
 
+            // Use high accuracy options for better precision
+            const options = {
+                enableHighAccuracy: true,      // Request high accuracy (uses GPS if available)
+                timeout: 10000,                 // Wait up to 10 seconds for GPS
+                maximumAge: 0                   // Don't use cached position, get fresh data
+            };
+
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
-                    const { latitude, longitude } = position.coords;
+                    const { latitude, longitude, accuracy } = position.coords;
 
                     try {
                         // Store coordinates for later use (distance calculation)
@@ -342,14 +349,31 @@
 
                         // Initialize Leaflet map if not already done
                         if (!locationMap) {
-                            locationMap = L.map('locationMap').setView([latitude, longitude], 15);
+                            locationMap = L.map('locationMap').setView([latitude, longitude], 18);
                             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                                 attribution: '© OpenStreetMap contributors',
                                 maxZoom: 19
                             }).addTo(locationMap);
                         } else {
-                            locationMap.setView([latitude, longitude], 15);
+                            locationMap.setView([latitude, longitude], 18);
                         }
+
+                        // Add accuracy circle to show precision range
+                        const accuracyCircle = L.circle([latitude, longitude], {
+                            radius: accuracy,
+                            color: '#007bff',
+                            fill: true,
+                            fillColor: '#007bff',
+                            fillOpacity: 0.1,
+                            weight: 2,
+                            dashArray: '5, 5'
+                        }).addTo(locationMap);
+
+                        // Display accuracy info
+                        const accuracyText = accuracy < 10 ? 'Very High' :
+                            accuracy < 50 ? 'High' :
+                                accuracy < 100 ? 'Medium' : 'Low';
+                        console.log(`📍 Location accuracy: ${accuracy.toFixed(2)}m (${accuracyText})`);
 
                         // Remove old marker if exists
                         if (locationMarker) {
@@ -387,10 +411,25 @@
                     }
                 },
                 (error) => {
-                    alert('Unable to get location: ' + error.message);
+                    console.error('Geolocation error:', error);
+
+                    // Handle different error types
+                    let errorMsg = '';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        errorMsg = 'Location permission denied. Please enable location access in browser settings.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        errorMsg = 'Location information is unavailable. Please try again or enable GPS.';
+                    } else if (error.code === error.TIMEOUT) {
+                        errorMsg = 'Location request timed out. Please try again with better GPS signal.';
+                    } else {
+                        errorMsg = 'Unable to get location: ' + error.message;
+                    }
+
+                    alert(errorMsg);
                     btn.disabled = false;
                     btn.textContent = 'Add current location';
-                }
+                },
+                options
             );
         });
 
@@ -398,13 +437,13 @@
         async function updateLocationAddress(latitude, longitude) {
             const locationInput = document.getElementById('location');
 
-            console.log(`🔍 Geocoding coordinates: ${latitude}, ${longitude}`);
+            console.log(`🔍 Geocoding coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
 
             try {
-                // Use OpenStreetMap Nominatim (FREE, no API key required, no rate limiting issues)
-                console.log('📍 Using OpenStreetMap Nominatim for address lookup...');
+                // Use OpenStreetMap Nominatim with zoom level 18 for higher precision (building/house level)
+                console.log('📍 Using OpenStreetMap Nominatim for high-precision address lookup (zoom 18)...');
 
-                const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+                const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18`;
                 const nominatimResponse = await fetch(nominatimUrl, {
                     headers: { 'Accept-Language': 'en' }
                 });
@@ -413,9 +452,29 @@
                     const nominatimData = await nominatimResponse.json();
 
                     if (nominatimData.address) {
-                        // Build address from OSM components (most readable format)
+                        // Build address from OSM components with more detailed info
                         const addr = nominatimData.address;
                         const addressParts = [];
+
+                        // Log raw address data for debugging
+                        console.log('📍 Raw address data from Nominatim:', addr);
+
+                        // Add house number if available
+                        if (addr.house_number) {
+                            addressParts.push(addr.house_number);
+                        }
+
+                        // Add street address if available (but avoid highways)
+                        if (addr.road && !addr.road.toLowerCase().includes('expressway') && !addr.road.toLowerCase().includes('highway')) {
+                            addressParts.push(addr.road);
+                        }
+
+                        // Prefer specific location names: college, university, building, etc.
+                        if (addr.amenity) {
+                            addressParts.push(addr.amenity);
+                        } else if (addr.building) {
+                            addressParts.push(addr.building);
+                        }
 
                         // Prefer village/town/suburb as starting point
                         if (addr.village) {
@@ -426,11 +485,6 @@
                             addressParts.push(addr.suburb);
                         } else if (addr.neighbourhood) {
                             addressParts.push(addr.neighbourhood);
-                        }
-
-                        // Add street address if available
-                        if (addr.road) {
-                            addressParts.unshift(addr.road);
                         }
 
                         // Add city/district

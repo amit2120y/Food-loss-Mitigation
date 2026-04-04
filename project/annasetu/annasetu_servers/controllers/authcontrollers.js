@@ -367,11 +367,17 @@ async function performTextAnalysis(description) {
                 const result = await analyzeTextWithGemini(description);
                 if (result) {
                     console.log("✓ Using Gemini AI analysis");
+                    console.log("Gemini Result:", result);
                     return result;
+                } else {
+                    console.log("⚠️ Gemini returned null, falling back to keywords");
                 }
             } catch (error) {
                 console.log("⚠️ Gemini API unavailable, using intelligent keyword-based analysis");
+                console.error("❌ Gemini Error Details:", error.message); // Show the actual error
             }
+        } else {
+            console.log("⚠️ GEMINI_API_KEY not set in environment");
         }
 
         // Use intelligent keyword-based analysis (main method)
@@ -556,10 +562,13 @@ ANALYSIS RULES:
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!responseText) throw new Error("No response text");
 
+        console.log("Raw Gemini Response:", responseText); // Log what Gemini returned
+
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("No JSON found");
 
         const analysis = JSON.parse(jsonMatch[0]);
+        console.log("Parsed Gemini JSON:", analysis); // Log parsed response
 
         // Validate and normalize the scores
         let human = Math.max(0, Math.min(100, analysis.human || 50));
@@ -589,6 +598,7 @@ ANALYSIS RULES:
 
     } catch (error) {
         console.log("Gemini API unavailable:", error.message);
+        console.error("Full Gemini error:", error); // Add full error details
         return null; // Signal to use fallback
     }
 }

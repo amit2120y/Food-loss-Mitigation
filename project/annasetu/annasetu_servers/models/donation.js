@@ -58,8 +58,43 @@ const donationSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ["Available", "Claimed", "Expired"],
+    enum: ["Available", "Claimed", "Completed", "Expired"],
     default: "Available"
+  },
+
+  // Claim tracking
+  claimedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+  },
+
+  claims: [{
+    userId: mongoose.Schema.Types.ObjectId,
+    userName: String,
+    userEmail: String,
+    userPhone: String,
+    claimedAt: { type: Date, default: Date.now },
+    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" },
+    // Request details
+    purpose: String, // e.g., "Personal use", "Community center", "Hostel", "Event"
+    beneficiaries: Number, // How many people will benefit
+    notes: String, // Additional notes/requirements
+    address: String, // Delivery address
+    preferredPickupTime: String // When they want to pick up
+  }],
+
+  // Rating after completion
+  rating: {
+    score: { type: Number, min: 1, max: 5, default: null },
+    review: String,
+    ratedBy: mongoose.Schema.Types.ObjectId,
+    ratedAt: Date
+  },
+
+  isCompleted: {
+    type: Boolean,
+    default: false
   },
 
   createdAt: {

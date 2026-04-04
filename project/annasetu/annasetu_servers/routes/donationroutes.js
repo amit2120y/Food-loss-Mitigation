@@ -7,6 +7,13 @@ const {
   getAllDonations,
   updateDonation,
   deleteDonation,
+  claimDonation,
+  unclaimDonation,
+  acceptClaim,
+  rejectClaim,
+  getUserClaims,
+  completeDonationAndRate,
+  editDonation,
   debugClearAllDonations,
   debugGetAllDonationsWithUsers
 } = require("../controllers/donationcontrollers");
@@ -34,6 +41,23 @@ router.put("/:donationId", updateDonation);
 
 // Delete donation
 router.delete("/:donationId", deleteDonation);
+
+// Edit donation (owner only, before being claimed)
+router.patch("/:donationId", editDonation);
+
+// Claim/Unclaim
+router.post("/:donationId/claim", claimDonation);
+router.delete("/:donationId/claim", unclaimDonation);
+
+// Accept/Reject claims (donor only)
+router.post("/:donationId/claims/:claimUserId/accept", acceptClaim);
+router.post("/:donationId/claims/:claimUserId/reject", rejectClaim);
+
+// Get user's claims
+router.get("/user/my-claims", getUserClaims);
+
+// Complete donation and rate
+router.post("/:donationId/complete", completeDonationAndRate);
 
 // DEBUG ENDPOINTS (development only - REMOVE OR SECURE IN PRODUCTION)
 // These endpoints are useful for testing but should NEVER be exposed in production

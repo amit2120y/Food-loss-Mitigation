@@ -265,29 +265,40 @@ async function saveProfileChanges(e) {
       return;
     }
 
-    // Update localStorage
-    currentUser.name = name;
-    currentUser.phone = phone;
-    currentUser.location = location;
-    localStorage.setItem('user', JSON.stringify(currentUser));
+    const token = localStorage.getItem('token');
 
-    // In future, send to backend:
-    // const response = await fetch('http://localhost:5000/api/users/profile', {
-    //   method: 'PUT',
-    //   headers: {
-    //     'Authorization': `Bearer ${localStorage.getItem('token')}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ name, phone, location })
-    // });
+    // Send to backend
+    const response = await fetch('http://localhost:5000/api/auth/users/profile', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name, phone, location })
+    });
 
-    console.log('✓ Profile updated');
-    displayProfileData(currentUser);
-    toggleEditMode();
-    alert('Profile updated successfully!');
+    const data = await response.json();
+
+    if (response.ok) {
+      // Update localStorage with new data
+      currentUser = {
+        ...currentUser,
+        name: data.user.name,
+        phone: data.user.phone,
+        location: data.user.location
+      };
+      localStorage.setItem('user', JSON.stringify(currentUser));
+
+      console.log('✓ Profile updated successfully');
+      displayProfileData(currentUser);
+      toggleEditMode();
+      alert('Profile updated successfully!');
+    } else {
+      alert('Error updating profile: ' + (data.message || 'Unknown error'));
+    }
   } catch (error) {
     console.error('Error saving profile:', error);
-    alert('Error saving profile changes');
+    alert('Error saving profile: ' + error.message);
   }
 }
 
@@ -325,22 +336,30 @@ async function changePassword(e) {
       return;
     }
 
-    // In future, send to backend:
-    // const response = await fetch('http://localhost:5000/api/users/change-password', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${localStorage.getItem('token')}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ currentPassword, newPassword })
-    // });
+    const token = localStorage.getItem('token');
 
-    console.log('✓ Password would be changed (feature pending)');
-    alert('⚠️ Password change feature coming soon!\nFor now, contact support to change your password.');
-    closePasswordModal();
+    // Send to backend
+    const response = await fetch('http://localhost:5000/api/auth/users/change-password', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      console.log('✓ Password changed successfully');
+      alert('✅ Password changed successfully!');
+      closePasswordModal();
+    } else {
+      alert('Error: ' + (data.message || 'Failed to change password'));
+    }
   } catch (error) {
     console.error('Error changing password:', error);
-    alert('Error changing password');
+    alert('Error: ' + error.message);
   }
 }
 

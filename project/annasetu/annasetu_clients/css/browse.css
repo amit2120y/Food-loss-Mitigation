@@ -233,6 +233,64 @@
   box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
 }
 
+.claim-action {
+  margin-top: auto;
+  width: 100%;
+}
+
+.claim-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.claim-btn:hover:not(:disabled):not(.disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(46, 125, 50, 0.4);
+}
+
+.claim-btn:active:not(:disabled):not(.disabled) {
+  transform: translateY(0);
+}
+
+.claim-btn.disabled,
+.claim-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.claim-status-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: not-allowed;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.claim-status-btn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 /* LOADING & EMPTY STATE */
 .loading-state,
 .empty-state {
@@ -348,6 +406,14 @@
 }
 
 #donationDetails {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 3px solid #2e7d32;
+}
+
+#claimDetails {
   background: #f9f9f9;
   padding: 15px;
   border-radius: 8px;

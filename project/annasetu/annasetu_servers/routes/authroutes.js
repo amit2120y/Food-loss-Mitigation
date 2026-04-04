@@ -3,12 +3,14 @@ const router = express.Router();
 const passport = require("passport");
 
 const {
-registerUser,
-loginUser,
-googleCallback,
-getGoogleLoginSuccess,
-getUserStats,
-analyzeFoodWithAI
+  registerUser,
+  loginUser,
+  googleCallback,
+  getGoogleLoginSuccess,
+  getUserStats,
+  analyzeFoodWithAI,
+  updateProfile,
+  changePassword
 } = require("../controllers/authcontrollers");
 
 router.post("/register", registerUser);
@@ -23,7 +25,7 @@ router.get("/google", (req, res) => {
     scope: "profile email",
     access_type: "offline"
   }).toString()}`;
-  
+
   res.redirect(googleAuthUrl);
 });
 
@@ -32,21 +34,21 @@ router.get("/google/callback", async (req, res) => {
   try {
     console.log("\n=== Google OAuth Callback Started ===");
     console.log("Step 1: Received query params keys:", Object.keys(req.query));
-    
+
     const { code, token } = req.query;
-    
+
     // Handle JWT token from Google Sign-In Widget
     if (token && !code) {
       console.log("✓ Step 1: JWT token received from Google Sign-In Widget");
       return handleGoogleSignInWidget(token, res);
     }
-    
+
     // Handle authorization code from backend OAuth flow
     if (code && !token) {
       console.log("✓ Step 1: Authorization code received from backend OAuth");
       return handleGoogleOAuthCode(code, res);
     }
-    
+
     console.log("❌ Step 1 FAILED: Neither code nor token received");
     return res.redirect("/login.html?error=no_auth_data");
 
@@ -60,19 +62,19 @@ router.get("/google/callback", async (req, res) => {
 async function handleGoogleSignInWidget(jwtToken, res) {
   try {
     console.log("\n--- Processing Google Sign-In Widget Token ---");
-    
+
     // Decode JWT (Note: we're not verifying signature here for simplicity, but you should in production)
     const parts = jwtToken.split('.');
     if (parts.length !== 3) {
       throw new Error('Invalid JWT token format');
     }
-    
+
     // Decode payload
     const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    console.log("Decoded JWT payload:", { 
-      name: payload.name, 
-      email: payload.email, 
-      sub: payload.sub 
+    console.log("Decoded JWT payload:", {
+      name: payload.name,
+      email: payload.email,
+      sub: payload.sub
     });
 
     const User = require("../models/user");
@@ -89,7 +91,7 @@ async function handleGoogleSignInWidget(jwtToken, res) {
     if (!user) {
       console.log("  → User NOT found with googleId, checking by email:", email);
       let existingEmailUser = await User.findOne({ email });
-      
+
       if (existingEmailUser) {
         console.log("  → Found existing user by email, updating with Google info...");
         user = await User.findByIdAndUpdate(
@@ -149,7 +151,7 @@ async function handleGoogleOAuthCode(code, res) {
     console.log("Step 2: Exchanging code for access token...");
 
     const { default: fetch } = await import("node-fetch");
-    
+
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -164,7 +166,7 @@ async function handleGoogleOAuthCode(code, res) {
 
     const tokenData = await tokenResponse.json();
     console.log("Step 2 Response:", { status: tokenResponse.status, hasAccessToken: !!tokenData.access_token });
-    
+
     if (!tokenData.access_token) {
       console.log("❌ Step 2 FAILED: No access token received:", tokenData);
       return res.redirect("/login.html?error=no_token&details=" + encodeURIComponent(JSON.stringify(tokenData)));
@@ -178,10 +180,10 @@ async function handleGoogleOAuthCode(code, res) {
     });
 
     const profile = await profileResponse.json();
-    console.log("✓ Step 3 SUCCESS: User profile received:", { 
-      id: profile.id, 
-      name: profile.name, 
-      email: profile.email 
+    console.log("✓ Step 3 SUCCESS: User profile received:", {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email
     });
 
     const User = require("../models/user");
@@ -193,7 +195,7 @@ async function handleGoogleOAuthCode(code, res) {
     if (!user) {
       console.log("  → User NOT found with googleId, checking by email:", profile.email);
       let existingEmailUser = await User.findOne({ email: profile.email });
-      
+
       if (existingEmailUser) {
         console.log("  → Found existing user by email, updating with Google info...");
         user = await User.findByIdAndUpdate(
@@ -248,5 +250,9 @@ async function handleGoogleOAuthCode(code, res) {
 router.get("/google/login-success", getGoogleLoginSuccess);
 router.get("/user-stats", getUserStats);
 router.post("/analyze-food", analyzeFoodWithAI);
+
+// User endpoints
+router.put("/users/profile", updateProfile);
+router.post("/users/change-password", changePassword);
 
 module.exports = router;

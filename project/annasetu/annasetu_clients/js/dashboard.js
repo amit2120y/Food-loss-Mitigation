@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${d.food || d.foodName || '-'}</td>
         <td>${d.quantity || d.qty || '-'}</td>
         <td><span class="badge available">${d.status || 'Available'}</span></td>
-        <td><button class="btn" onclick="alert('Edit feature coming soon')">Edit</button></td>
+        <td><button class="btn" onclick="openEditModal('${d._id || ''}', '${(d.food || d.foodName || '').replace(/'/g, "\\'")}', '${d.foodType || ''}', '${(d.quantity || d.qty || '').replace(/'/g, "\\'")}', '${(d.description || '').replace(/'/g, "\\'")}', '${(d.location || '').replace(/'/g, "\\'")}')" ${!d._id ? 'disabled' : ''}>Edit</button></td>
       `;
       table.appendChild(tr);
     });
@@ -243,5 +243,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('Failed to compute/update dashboard counts', err);
   }
 
-  console.log('=== Dashboard Fully Loaded ===');
+  console.log('=== Dashboard Fully Loaded ===')
+});
+
+
+
+// Edit Modal Functions
+let currentEditingDonationId = null;
+
+function openEditModal(donationId, foodName, foodType, quantity, description, location) {
+  if (!donationId) {
+    alert('Cannot edit this donation');
+    return;
+  }
+
+  currentEditingDonationId = donationId;
+
+  // Display read-only fields
+  document.getElementById('displayFoodName').textContent = foodName;
+  document.getElementById('displayFoodType').textContent = foodType;
+  document.getElementById('displayLocation').textContent = location;
+
+  // Only populate editable quantity field
+  document.getElementById('editQuantity').value = quantity;
+
+  // Show modal
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+  currentEditingDonationId = null;
+}
+
+// Handle edit form submission
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'editForm') return;
+
+  e.preventDefault();
+
+  const token = localStorage.getItem('token');
+  if (!token || !currentEditingDonationId) {
+    alert('Error: Not authenticated');
+    return;
+  }
+
+  try {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+
+    const updateData = {
+      quantity: document.getElementById('editQuantity').value
+    };
+
+    console.log(`[EDIT] Sending PATCH to /api/donations/${currentEditingDonationId}`, updateData);
+
+    const response = await fetch(`http://localhost:5000/api/donations/${currentEditingDonationId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    console.log(`[EDIT] Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[EDIT] Error response:', errorData);
+      throw new Error(errorData.message || 'Failed to update donation');
+    }
+
+    const returnedData = await response.json();
+    console.log('[EDIT] Success response:', returnedData);
+
+    alert('✅ Donation updated successfully!');
+    closeEditModal();
+
+    // Reload page to show updated donation
+    console.log('[EDIT] Reloading page...');
+    window.location.reload();
+
+  } catch (error) {
+    console.error('Error updating donation:', error);
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Save Changes';
+    }
+  }
+});
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('editModal');
+  if (e.target === modal) {
+    closeEditModal();
+  }
 });

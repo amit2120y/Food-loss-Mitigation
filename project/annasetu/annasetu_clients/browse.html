@@ -50,6 +50,7 @@
                 <a href="dashboard.html" class="nav-link"><i class="fa fa-home"></i> Dashboard</a>
                 <a href="addfood.html" class="nav-link"><i class="fa fa-plus-circle"></i> Add Food</a>
                 <a href="browse.html" class="nav-link active"><i class="fa fa-utensils"></i> Browse Food</a>
+                <a href="manage-requests.html" class="nav-link"><i class="fa fa-tasks"></i> Manage Requests</a>
                 <a href="notifications.html" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
                 <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
                 <a href="#" class="nav-link logout">
@@ -114,35 +115,83 @@
         </div>
     </div>
 
-    <!-- REQUEST/CLAIM MODAL -->
-    <div id="requestModal" class="modal" style="display: none;">
-        <div class="modal-content">
+    <!-- CLAIM MODAL -->
+    <div id="claimModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
-                <h2>Request Food</h2>
+                <h2>📋 Submit Claim Request</h2>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
 
             <div class="modal-body">
-                <div id="donationDetails"></div>
+                <div id="claimDetails"
+                    style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;"></div>
 
-                <form id="requestForm">
+                <form id="claimForm">
+                    <!-- Purpose -->
                     <div class="form-group">
-                        <label for="quantity">Quantity Needed:</label>
-                        <input type="text" id="quantity" placeholder="e.g., 2 plates, 1 kg" required>
+                        <label for="claimPurpose">
+                            <i class="fa fa-target"></i> Purpose of Claim <span style="color: red;">*</span>
+                        </label>
+                        <select id="claimPurpose" name="purpose" required
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;">
+                            <option value="">Select purpose...</option>
+                            <option value="Human consumption">Human consumption</option>
+                            <option value="Cattle feeding">Cattle feeding</option>
+                            <option value="Organic compost">Organic compost</option>
+                        </select>
                     </div>
 
+                    <!-- Number of Beneficiaries -->
                     <div class="form-group">
-                        <label for="message">Message to Donor:</label>
-                        <textarea id="message" rows="4"
-                            placeholder="Tell them why you need this food (optional)"></textarea>
+                        <label for="claimBeneficiaries">
+                            <i class="fa fa-users"></i> Number of People Benefiting <span style="color: red;">*</span>
+                        </label>
+                        <input type="number" id="claimBeneficiaries" name="beneficiaries" min="1" max="1000"
+                            placeholder="e.g., 5" required
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                     </div>
 
+                    <!-- Delivery Address -->
                     <div class="form-group">
-                        <label for="phone">Your Phone Number:</label>
-                        <input type="tel" id="phone" placeholder="Your contact number" required>
+                        <label for="claimAddress">
+                            <i class="fa fa-map-marker"></i> Delivery/Pickup Address <span style="color: red;">*</span>
+                        </label>
+                        <textarea id="claimAddress" name="address" rows="2"
+                            placeholder="Enter full address where you'll receive/pickup the food" required
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;"></textarea>
                     </div>
 
-                    <button type="submit" class="btn-submit">Send Request</button>
+                    <!-- Preferred Pickup Time -->
+                    <div class="form-group">
+                        <label for="claimPickupTime">
+                            <i class="fa fa-clock"></i> Preferred Pickup/Delivery Time
+                        </label>
+                        <input type="datetime-local" id="claimPickupTime" name="preferredPickupTime"
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    </div>
+
+                    <!-- Additional Notes -->
+                    <div class="form-group">
+                        <label for="claimNotes">
+                            <i class="fa fa-sticky-note"></i> Special Requirements/Notes
+                        </label>
+                        <textarea id="claimNotes" name="notes" rows="3"
+                            placeholder="Any special dietary needs, allergies, or other requirements? (Optional)"
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;"></textarea>
+                    </div>
+
+                    <!-- Terms -->
+                    <div
+                        style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; border-radius: 4px; margin-bottom: 15px; font-size: 12px; color: #856404;">
+                        <i class="fa fa-info-circle"></i> <strong>By submitting this request:</strong> You confirm that
+                        you truly need this food and will arrange pickup/delivery as per donor's availability.
+                    </div>
+
+                    <button type="submit" class="btn-submit"
+                        style="width: 100%; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 5px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.3s;">
+                        <i class="fa fa-check"></i> Submit Claim Request
+                    </button>
                 </form>
             </div>
         </div>

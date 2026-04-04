@@ -5,54 +5,54 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Helper function to detect and handle MongoDB network errors
 function handleDatabaseError(error) {
-  if (error.name === 'MongoNetworkError' || error.name === 'MongoNetworkTimeoutError') {
-    return {
-      status: 503,
-      message: "Database temporarily unavailable. Please check your internet connection and try again.",
-      isDatabaseError: true
-    };
-  }
-  return null;
+    if (error.name === 'MongoNetworkError' || error.name === 'MongoNetworkTimeoutError') {
+        return {
+            status: 503,
+            message: "Database temporarily unavailable. Please check your internet connection and try again.",
+            isDatabaseError: true
+        };
+    }
+    return null;
 }
 
 // REGISTER
 
 exports.registerUser = async (req, res) => {
 
-  try {
+    try {
 
-    const { name, email, phone, password } = req.body;
+        const { name, email, phone, password } = req.body;
 
-    // Validate input
-    if (!name || !email || !phone || !password) {
-      return res.status(400).json({ message: "Please provide all required fields" });
+        // Validate input
+        if (!name || !email || !phone || !password) {
+            return res.status(400).json({ message: "Please provide all required fields" });
+        }
+
+        // check if user exists
+        const existingUser = await User.findOne({ email });
+
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists with this email" });
+        }
+
+        // hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // create user
+        const user = await User.create({
+            name,
+            email,
+            phone,
+            password: hashedPassword
+        });
+
+        console.log("User registered successfully:", user.email);
+        res.status(201).json({ message: "User registered successfully", userId: user._id });
+
+    } catch (error) {
+        console.error("Registration error:", error.message);
+        res.status(500).json({ message: "Registration failed", error: error.message });
     }
-
-    // check if user exists
-    const existingUser = await User.findOne({ email });
-
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists with this email" });
-    }
-
-    // hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // create user
-    const user = await User.create({
-      name,
-      email,
-      phone,
-      password: hashedPassword
-    });
-
-    console.log("User registered successfully:", user.email);
-    res.status(201).json({ message: "User registered successfully", userId: user._id });
-
-  } catch (error) {
-    console.error("Registration error:", error.message);
-    res.status(500).json({ message: "Registration failed", error: error.message });
-  }
 
 };
 
@@ -62,59 +62,59 @@ exports.registerUser = async (req, res) => {
 
 exports.loginUser = async (req, res) => {
 
-  try {
+    try {
 
-    const { email, password } = req.body;
+        const { email, password } = req.body;
 
-    // Validate input
-    if (!email || !password) {
-      return res.status(400).json({ message: "Please provide email and password" });
+        // Validate input
+        if (!email || !password) {
+            return res.status(400).json({ message: "Please provide email and password" });
+        }
+
+        // check user
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(401).json({ message: "Invalid email or password" });
+        }
+
+        // compare password
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid email or password" });
+        }
+
+        // Ensure JWT secret exists
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+            console.error("JWT_SECRET is not defined in environment variables.");
+            return res.status(500).json({ message: "Server configuration error: JWT secret is missing" });
+        }
+
+        // create token
+        const token = jwt.sign(
+            { id: user._id },
+            jwtSecret,
+            { expiresIn: "7d" }
+        );
+
+        console.log("User logged in successfully:", user.email);
+
+        res.status(200).json({
+            message: "Login successful",
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email
+            }
+        });
+
+    } catch (error) {
+        console.error("Login error:", error.message);
+        res.status(500).json({ message: "Login failed", error: error.message });
     }
-
-    // check user
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
-
-    // compare password
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
-
-    // Ensure JWT secret exists
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      console.error("JWT_SECRET is not defined in environment variables.");
-      return res.status(500).json({ message: "Server configuration error: JWT secret is missing" });
-    }
-
-    // create token
-    const token = jwt.sign(
-      { id: user._id },
-      jwtSecret,
-      { expiresIn: "7d" }
-    );
-
-    console.log("User logged in successfully:", user.email);
-
-    res.status(200).json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email
-      }
-    });
-
-  } catch (error) {
-    console.error("Login error:", error.message);
-    res.status(500).json({ message: "Login failed", error: error.message });
-  }
 
 };
 
@@ -122,230 +122,230 @@ exports.loginUser = async (req, res) => {
 // GOOGLE OAUTH CALLBACK
 
 exports.googleCallback = async (req, res) => {
-  try {
-    const { id, displayName, emails, photos } = req.user;
-    const email = emails[0].value;
-    const profilePicture = photos[0]?.value || null;
+    try {
+        const { id, displayName, emails, photos } = req.user;
+        const email = emails[0].value;
+        const profilePicture = photos[0]?.value || null;
 
-    // Check if user exists
-    let user = await User.findOne({ googleId: id });
+        // Check if user exists
+        let user = await User.findOne({ googleId: id });
 
-    if (!user) {
-      // Check if email already exists (email/password user)
-      let existingEmailUser = await User.findOne({ email });
+        if (!user) {
+            // Check if email already exists (email/password user)
+            let existingEmailUser = await User.findOne({ email });
 
-      if (existingEmailUser) {
-        // Update existing user with Google info
-        user = await User.findByIdAndUpdate(
-          existingEmailUser._id,
-          {
-            googleId: id,
-            googleName: displayName,
-            googleEmail: email,
-            googleProfilePicture: profilePicture,
-            authMethod: 'google'
-          },
-          { new: true }
+            if (existingEmailUser) {
+                // Update existing user with Google info
+                user = await User.findByIdAndUpdate(
+                    existingEmailUser._id,
+                    {
+                        googleId: id,
+                        googleName: displayName,
+                        googleEmail: email,
+                        googleProfilePicture: profilePicture,
+                        authMethod: 'google'
+                    },
+                    { new: true }
+                );
+            } else {
+                // Create new user
+                user = await User.create({
+                    name: displayName,
+                    email,
+                    googleId: id,
+                    googleName: displayName,
+                    googleEmail: email,
+                    googleProfilePicture: profilePicture,
+                    authMethod: 'google'
+                });
+            }
+        }
+
+        // Create JWT token
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
         );
-      } else {
-        // Create new user
-        user = await User.create({
-          name: displayName,
-          email,
-          googleId: id,
-          googleName: displayName,
-          googleEmail: email,
-          googleProfilePicture: profilePicture,
-          authMethod: 'google'
-        });
-      }
+
+        console.log("User logged in with Google:", email);
+
+        // Redirect to frontend with token
+        res.redirect(`http://localhost:5000/dashboard.html?token=${token}&userId=${user._id}&userName=${encodeURIComponent(user.name)}&userEmail=${encodeURIComponent(user.email)}`);
+
+    } catch (error) {
+        console.error("Google callback error:", error);
+        res.status(500).json({ message: "Google authentication failed", error: error.message });
     }
-
-    // Create JWT token
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    console.log("User logged in with Google:", email);
-
-    // Redirect to frontend with token
-    res.redirect(`http://localhost:5000/dashboard.html?token=${token}&userId=${user._id}&userName=${encodeURIComponent(user.name)}&userEmail=${encodeURIComponent(user.email)}`);
-
-  } catch (error) {
-    console.error("Google callback error:", error);
-    res.status(500).json({ message: "Google authentication failed", error: error.message });
-  }
 };
 
 
 // GOOGLE LOGIN SUCCESS - returns user data
 
 exports.getGoogleLoginSuccess = async (req, res) => {
-  try {
-    // Extract token from query or headers
-    const token = req.query.token || req.headers.authorization?.split(' ')[1];
-    const userId = req.query.userId;
+    try {
+        // Extract token from query or headers
+        const token = req.query.token || req.headers.authorization?.split(' ')[1];
+        const userId = req.query.userId;
 
-    if (!token) {
-      return res.status(401).json({ message: "No token provided" });
+        if (!token) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+            message: "Google login successful",
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                profilePicture: user.googleProfilePicture
+            }
+        });
+
+    } catch (error) {
+        console.error("Error getting Google login success:", error);
+        res.status(500).json({ message: "Failed to process login", error: error.message });
     }
-
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json({
-      message: "Google login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        profilePicture: user.googleProfilePicture
-      }
-    });
-
-  } catch (error) {
-    console.error("Error getting Google login success:", error);
-    res.status(500).json({ message: "Failed to process login", error: error.message });
-  }
 };
 
 
 // GET USER STATS - Donations made and received
 
 exports.getUserStats = async (req, res) => {
-  try {
-    // Get token from Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: "No token provided" });
+    try {
+        // Get token from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        console.log(`Fetching stats for user: ${user.email}`);
+
+        res.status(200).json({
+            message: "User stats retrieved successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                profilePicture: user.googleProfilePicture || null,
+                donationsMade: user.donationsMade || 0,
+                donationsReceived: user.donationsReceived || 0,
+                createdAt: user.createdAt
+            }
+        });
+
+    } catch (error) {
+        console.error("Error getting user stats:", error);
+
+        // Check if it's a database connectivity issue
+        const dbError = handleDatabaseError(error);
+        if (dbError) {
+            return res.status(dbError.status).json({ message: dbError.message });
+        }
+
+        res.status(500).json({ message: "Invalid token or failed to fetch stats", error: error.message });
     }
-
-    const token = authHeader.split(' ')[1];
-
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    console.log(`Fetching stats for user: ${user.email}`);
-
-    res.status(200).json({
-      message: "User stats retrieved successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        profilePicture: user.googleProfilePicture || null,
-        donationsMade: user.donationsMade || 0,
-        donationsReceived: user.donationsReceived || 0,
-        createdAt: user.createdAt
-      }
-    });
-
-  } catch (error) {
-    console.error("Error getting user stats:", error);
-
-    // Check if it's a database connectivity issue
-    const dbError = handleDatabaseError(error);
-    if (dbError) {
-      return res.status(dbError.status).json({ message: dbError.message });
-    }
-
-    res.status(500).json({ message: "Invalid token or failed to fetch stats", error: error.message });
-  }
 };
 
 
 // ANALYZE FOOD WITH AI
 
 exports.analyzeFoodWithAI = async (req, res) => {
-  try {
-    // Get token and verify user
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: "No token provided" });
+    try {
+        // Get token and verify user
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const { images, description } = req.body;
+
+        // Accept either images or text description
+        if ((!images || (Array.isArray(images) && images.length === 0)) && (!description || description.trim() === '')) {
+            return res.status(400).json({ message: "Please provide either images or a food description" });
+        }
+
+        console.log(`\n=== AI Food Analysis Request ===`);
+        console.log(`User: ${user.email}`);
+
+        let analyses = [];
+        let combinedAnalysis = null;
+
+        // Analyze text if provided
+        if (description && description.trim()) {
+            console.log(`Analyzing text description: "${description.substring(0, 50)}..."`);
+            const textAnalysis = await performTextAnalysis(description);
+            analyses.push({ type: "text", analysis: textAnalysis });
+            console.log(`✓ Text analysis complete: Human=${textAnalysis.human}%, Cattle=${textAnalysis.cattle}%, Fertilizer=${textAnalysis.fertilizer}%`);
+        }
+
+        // Analyze images if provided
+        if (images && Array.isArray(images) && images.length > 0) {
+            console.log(`Analyzing ${images.length} image(s)`);
+            const imageAnalysis = await performAIAnalysis(images[0]);
+            analyses.push({ type: "image", analysis: imageAnalysis });
+            console.log(`✓ Image analysis complete: Human=${imageAnalysis.human}%, Cattle=${imageAnalysis.cattle}%, Fertilizer=${imageAnalysis.fertilizer}%`);
+        }
+
+        // Combine analyses if both are available
+        if (analyses.length > 1) {
+            console.log(`\n📊 Combining text and image analyses...`);
+            combinedAnalysis = combineAnalyses(analyses);
+            console.log(`✓ Combined analysis: Human=${combinedAnalysis.human}%, Cattle=${combinedAnalysis.cattle}%, Fertilizer=${combinedAnalysis.fertilizer}%`);
+        } else if (analyses.length === 1) {
+            combinedAnalysis = analyses[0].analysis;
+        }
+
+        if (!combinedAnalysis) {
+            return res.status(400).json({ message: "No valid analysis could be performed" });
+        }
+
+        console.log(`✓ AI analysis complete`);
+        console.log(`Result: Human=${combinedAnalysis.human}%, Cattle=${combinedAnalysis.cattle}%, Fertilizer=${combinedAnalysis.fertilizer}%\n`);
+
+        // Determine the primary category
+        const category = determineCategory(combinedAnalysis);
+        console.log(`📌 Category Decision: ${category.emoji} ${category.label} - ${category.description}`);
+
+        res.status(200).json({
+            message: "Food analysis successful",
+            analysis: combinedAnalysis,
+            category: category,
+            sources: analyses.map(a => a.type)
+        });
+
+    } catch (error) {
+        console.error("Error in AI analysis:", error);
+        res.status(500).json({ message: "AI analysis failed", error: error.message });
     }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const { images, description } = req.body;
-
-    // Accept either images or text description
-    if ((!images || (Array.isArray(images) && images.length === 0)) && (!description || description.trim() === '')) {
-      return res.status(400).json({ message: "Please provide either images or a food description" });
-    }
-
-    console.log(`\n=== AI Food Analysis Request ===`);
-    console.log(`User: ${user.email}`);
-
-    let analyses = [];
-    let combinedAnalysis = null;
-
-    // Analyze text if provided
-    if (description && description.trim()) {
-      console.log(`Analyzing text description: "${description.substring(0, 50)}..."`);
-      const textAnalysis = await performTextAnalysis(description);
-      analyses.push({ type: "text", analysis: textAnalysis });
-      console.log(`✓ Text analysis complete: Human=${textAnalysis.human}%, Cattle=${textAnalysis.cattle}%, Fertilizer=${textAnalysis.fertilizer}%`);
-    }
-
-    // Analyze images if provided
-    if (images && Array.isArray(images) && images.length > 0) {
-      console.log(`Analyzing ${images.length} image(s)`);
-      const imageAnalysis = await performAIAnalysis(images[0]);
-      analyses.push({ type: "image", analysis: imageAnalysis });
-      console.log(`✓ Image analysis complete: Human=${imageAnalysis.human}%, Cattle=${imageAnalysis.cattle}%, Fertilizer=${imageAnalysis.fertilizer}%`);
-    }
-
-    // Combine analyses if both are available
-    if (analyses.length > 1) {
-      console.log(`\n📊 Combining text and image analyses...`);
-      combinedAnalysis = combineAnalyses(analyses);
-      console.log(`✓ Combined analysis: Human=${combinedAnalysis.human}%, Cattle=${combinedAnalysis.cattle}%, Fertilizer=${combinedAnalysis.fertilizer}%`);
-    } else if (analyses.length === 1) {
-      combinedAnalysis = analyses[0].analysis;
-    }
-
-    if (!combinedAnalysis) {
-      return res.status(400).json({ message: "No valid analysis could be performed" });
-    }
-
-    console.log(`✓ AI analysis complete`);
-    console.log(`Result: Human=${combinedAnalysis.human}%, Cattle=${combinedAnalysis.cattle}%, Fertilizer=${combinedAnalysis.fertilizer}%\n`);
-
-    // Determine the primary category
-    const category = determineCategory(combinedAnalysis);
-    console.log(`📌 Category Decision: ${category.emoji} ${category.label} - ${category.description}`);
-
-    res.status(200).json({
-      message: "Food analysis successful",
-      analysis: combinedAnalysis,
-      category: category,
-      sources: analyses.map(a => a.type)
-    });
-
-  } catch (error) {
-    console.error("Error in AI analysis:", error);
-    res.status(500).json({ message: "AI analysis failed", error: error.message });
-  }
 };
 
 
@@ -357,30 +357,30 @@ exports.analyzeFoodWithAI = async (req, res) => {
 // ==============================================
 
 async function performTextAnalysis(description) {
-  try {
-    console.log("Analyzing food text description...");
+    try {
+        console.log("Analyzing food text description...");
 
-    // Try Gemini if available, but don't spend time retrying
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        console.log("Attempting Gemini API analysis...");
-        const result = await analyzeTextWithGemini(description);
-        if (result) {
-          console.log("✓ Using Gemini AI analysis");
-          return result;
+        // Try Gemini if available, but don't spend time retrying
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                console.log("Attempting Gemini API analysis...");
+                const result = await analyzeTextWithGemini(description);
+                if (result) {
+                    console.log("✓ Using Gemini AI analysis");
+                    return result;
+                }
+            } catch (error) {
+                console.log("⚠️ Gemini API unavailable, using intelligent keyword-based analysis");
+            }
         }
-      } catch (error) {
-        console.log("⚠️ Gemini API unavailable, using intelligent keyword-based analysis");
-      }
+
+        // Use intelligent keyword-based analysis (main method)
+        return await intelligentFoodAnalysis(description);
+
+    } catch (error) {
+        console.error("Error in text analysis:", error);
+        return getPlaceholderAnalysis();
     }
-
-    // Use intelligent keyword-based analysis (main method)
-    return await intelligentFoodAnalysis(description);
-
-  } catch (error) {
-    console.error("Error in text analysis:", error);
-    return getPlaceholderAnalysis();
-  }
 }
 
 // ==========================================
@@ -388,121 +388,121 @@ async function performTextAnalysis(description) {
 // ==========================================
 
 async function intelligentFoodAnalysis(description) {
-  console.log("Using intelligent food quality assessment...");
+    console.log("Using intelligent food quality assessment...");
 
-  const text = description.toLowerCase();
+    const text = description.toLowerCase();
 
-  // Enhanced food quality indicators
-  const indicators = {
-    spoilage: {
-      severe: ['moldy', 'rotten', 'decomposed', 'spoiled', 'fungus', 'decaying', 'green mold', 'black mold'],
-      minor: ['dark spots', 'small mold', 'wrinkled', 'soft', 'aged', 'slightly discolored']
-    },
-    freshness: {
-      fresh: ['fresh', 'new', 'today', 'just made', 'clean', 'good condition', 'perfect', 'excellent', 'well cooked'],
-      stale: ['old', 'few days old', '3 days', '4 days', '5 days', 'stale']
-    },
-    allergens: ['onion', 'garlic', 'chocolate', 'nut', 'peanut'],
-    categories: {
-      cooked: ['cooked', 'prepared', 'rice', 'curry', 'bread', 'meal', 'fried', 'boiled', 'grilled', 'baked', 'roti', 'chapati', 'daal', 'dal'],
-      raw: ['raw', 'vegetable', 'fruit', 'fresh produce', 'uncooked', 'salad']
-    }
-  };
-
-  let humanScore = 65;
-  let cattleScore = 25;
-  let fertilizerScore = 10;
-  let recommendation = "";
-  let reasoning = [];
-  let foodType = "General Food";
-  let isFresh = false;
-  let hasSevereSpoilage = false;
-  let hasMinorSpoilage = false;
-
-  // Check category
-  const isCooked = indicators.categories.cooked.some(k => text.includes(k));
-  const isRaw = indicators.categories.raw.some(k => text.includes(k));
-  foodType = isCooked ? "Cooked Food" : isRaw ? "Raw Produce" : "General Food";
-
-  // Check for severe spoilage
-  hasSevereSpoilage = indicators.spoilage.severe.some(k => text.includes(k));
-  if (hasSevereSpoilage) {
-    humanScore = 5;
-    cattleScore = 10;
-    fertilizerScore = 85;
-    recommendation = "⚠️ UNSAFE: Severe spoilage detected. Not suitable for human or animal consumption. Recommended for composting/fertilizer production.";
-    reasoning.push("Severe spoilage");
-  } else {
-    // Check for minor spoilage
-    hasMinorSpoilage = indicators.spoilage.minor.some(k => text.includes(k));
-    if (hasMinorSpoilage) {
-      humanScore = 20;
-      cattleScore = 40;
-      fertilizerScore = 40;
-      recommendation = "⚠️ QUESTIONABLE: Minor spoilage detected. Not recommended for humans but suitable for animal feed or composting.";
-      reasoning.push("Minor spoilage");
-    } else {
-      // Check freshness
-      isFresh = indicators.freshness.fresh.some(k => text.includes(k));
-      const isStale = indicators.freshness.stale.some(k => text.includes(k));
-
-      if (isFresh) {
-        humanScore = isCooked ? 85 : 90;
-        cattleScore = isCooked ? 10 : 5;
-        fertilizerScore = isCooked ? 5 : 5;
-        recommendation = "✅ EXCELLENT: Fresh and safe. Highly recommended for human consumption and donation.";
-        reasoning.push("Fresh condition");
-      } else if (isStale) {
-        humanScore = 40;
-        cattleScore = 50;
-        fertilizerScore = 10;
-        recommendation = "⚠️ AGING: Food is getting old. Can be used for animal feed or immediate donation.";
-        reasoning.push("Aging food");
-      } else {
-        // Default assessment based on category
-        if (isCooked) {
-          humanScore = 75;
-          cattleScore = 15;
-          fertilizerScore = 10;
-          recommendation = "✅ GOOD: Cooked food appears safe. Suitable for donation.";
-        } else if (isRaw) {
-          humanScore = 80;
-          cattleScore = 10;
-          fertilizerScore = 10;
-          recommendation = "✅ GOOD: Fresh produce appears safe. Suitable for donation.";
-        } else {
-          humanScore = 70;
-          cattleScore = 20;
-          fertilizerScore = 10;
-          recommendation = "✓ ACCEPTABLE: Food appears suitable for donation with proper handling.";
+    // Enhanced food quality indicators
+    const indicators = {
+        spoilage: {
+            severe: ['moldy', 'rotten', 'decomposed', 'spoiled', 'fungus', 'decaying', 'green mold', 'black mold'],
+            minor: ['dark spots', 'small mold', 'wrinkled', 'soft', 'aged', 'slightly discolored']
+        },
+        freshness: {
+            fresh: ['fresh', 'new', 'today', 'just made', 'clean', 'good condition', 'perfect', 'excellent', 'well cooked'],
+            stale: ['old', 'few days old', '3 days', '4 days', '5 days', 'stale']
+        },
+        allergens: ['onion', 'garlic', 'chocolate', 'nut', 'peanut'],
+        categories: {
+            cooked: ['cooked', 'prepared', 'rice', 'curry', 'bread', 'meal', 'fried', 'boiled', 'grilled', 'baked', 'roti', 'chapati', 'daal', 'dal'],
+            raw: ['raw', 'vegetable', 'fruit', 'fresh produce', 'uncooked', 'salad']
         }
-        reasoning.push("Standard assessment");
-      }
+    };
+
+    let humanScore = 65;
+    let cattleScore = 25;
+    let fertilizerScore = 10;
+    let recommendation = "";
+    let reasoning = [];
+    let foodType = "General Food";
+    let isFresh = false;
+    let hasSevereSpoilage = false;
+    let hasMinorSpoilage = false;
+
+    // Check category
+    const isCooked = indicators.categories.cooked.some(k => text.includes(k));
+    const isRaw = indicators.categories.raw.some(k => text.includes(k));
+    foodType = isCooked ? "Cooked Food" : isRaw ? "Raw Produce" : "General Food";
+
+    // Check for severe spoilage
+    hasSevereSpoilage = indicators.spoilage.severe.some(k => text.includes(k));
+    if (hasSevereSpoilage) {
+        humanScore = 5;
+        cattleScore = 10;
+        fertilizerScore = 85;
+        recommendation = "⚠️ UNSAFE: Severe spoilage detected. Not suitable for human or animal consumption. Recommended for composting/fertilizer production.";
+        reasoning.push("Severe spoilage");
+    } else {
+        // Check for minor spoilage
+        hasMinorSpoilage = indicators.spoilage.minor.some(k => text.includes(k));
+        if (hasMinorSpoilage) {
+            humanScore = 20;
+            cattleScore = 40;
+            fertilizerScore = 40;
+            recommendation = "⚠️ QUESTIONABLE: Minor spoilage detected. Not recommended for humans but suitable for animal feed or composting.";
+            reasoning.push("Minor spoilage");
+        } else {
+            // Check freshness
+            isFresh = indicators.freshness.fresh.some(k => text.includes(k));
+            const isStale = indicators.freshness.stale.some(k => text.includes(k));
+
+            if (isFresh) {
+                humanScore = isCooked ? 85 : 90;
+                cattleScore = isCooked ? 10 : 5;
+                fertilizerScore = isCooked ? 5 : 5;
+                recommendation = "✅ EXCELLENT: Fresh and safe. Highly recommended for human consumption and donation.";
+                reasoning.push("Fresh condition");
+            } else if (isStale) {
+                humanScore = 40;
+                cattleScore = 50;
+                fertilizerScore = 10;
+                recommendation = "⚠️ AGING: Food is getting old. Can be used for animal feed or immediate donation.";
+                reasoning.push("Aging food");
+            } else {
+                // Default assessment based on category
+                if (isCooked) {
+                    humanScore = 75;
+                    cattleScore = 15;
+                    fertilizerScore = 10;
+                    recommendation = "✅ GOOD: Cooked food appears safe. Suitable for donation.";
+                } else if (isRaw) {
+                    humanScore = 80;
+                    cattleScore = 10;
+                    fertilizerScore = 10;
+                    recommendation = "✅ GOOD: Fresh produce appears safe. Suitable for donation.";
+                } else {
+                    humanScore = 70;
+                    cattleScore = 20;
+                    fertilizerScore = 10;
+                    recommendation = "✓ ACCEPTABLE: Food appears suitable for donation with proper handling.";
+                }
+                reasoning.push("Standard assessment");
+            }
+        }
     }
-  }
 
-  // Check for allergens that affect cattle
-  const hasAllergens = indicators.allergens.some(k => text.includes(k));
-  if (hasAllergens) {
-    cattleScore = 0; // Unsafe for cattle
-    reasoning.push("Contains allergens (unsafe for cattle)");
-  }
-
-  console.log(`Analysis: ${reasoning.join(', ')}`);
-
-  return {
-    human: humanScore,
-    cattle: cattleScore,
-    fertilizer: fertilizerScore,
-    recommendation: recommendation,
-    confidence: "high",
-    details: {
-      food_type: foodType,
-      freshness: hasSevereSpoilage ? "spoiled" : hasMinorSpoilage ? "degraded" : isFresh ? "fresh" : "neutral",
-      condition: hasSevereSpoilage ? "unsafe" : hasMinorSpoilage ? "questionable" : "safe",
-      analysis_method: "Intelligent keyword-based assessment"
+    // Check for allergens that affect cattle
+    const hasAllergens = indicators.allergens.some(k => text.includes(k));
+    if (hasAllergens) {
+        cattleScore = 0; // Unsafe for cattle
+        reasoning.push("Contains allergens (unsafe for cattle)");
     }
-  };
+
+    console.log(`Analysis: ${reasoning.join(', ')}`);
+
+    return {
+        human: humanScore,
+        cattle: cattleScore,
+        fertilizer: fertilizerScore,
+        recommendation: recommendation,
+        confidence: "high",
+        details: {
+            food_type: foodType,
+            freshness: hasSevereSpoilage ? "spoiled" : hasMinorSpoilage ? "degraded" : isFresh ? "fresh" : "neutral",
+            condition: hasSevereSpoilage ? "unsafe" : hasMinorSpoilage ? "questionable" : "safe",
+            analysis_method: "Intelligent keyword-based assessment"
+        }
+    };
 }
 
 // ==========================================
@@ -510,15 +510,15 @@ async function intelligentFoodAnalysis(description) {
 // ==========================================
 
 async function analyzeTextWithGemini(description) {
-  try {
-    console.log("Attempting Google Gemini API (REST)...");
+    try {
+        console.log("Attempting Google Gemini API (REST)...");
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY not configured");
-    }
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("GEMINI_API_KEY not configured");
+        }
 
-    const prompt = `You are a food quality and waste management expert. Analyze this food and provide a suitability assessment.
+        const prompt = `You are a food quality and waste management expert. Analyze this food and provide a suitability assessment.
 Food description: "${description}"
 
 Respond ONLY as valid JSON (no markdown, no extra text):
@@ -537,60 +537,60 @@ ANALYSIS RULES:
 - Cattle is UNSAFE if contains allergens (onion, garlic, chocolate, nuts, peanut)
 - Always explain the food safety implications in recommendation`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                }),
+            }
+        );
 
-    if (!response.ok) {
-      throw new Error(`API ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`API ${response.status}`);
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!responseText) throw new Error("No response text");
+
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON found");
+
+        const analysis = JSON.parse(jsonMatch[0]);
+
+        // Validate and normalize the scores
+        let human = Math.max(0, Math.min(100, analysis.human || 50));
+        let cattle = Math.max(0, Math.min(100, analysis.cattle || 30));
+        let fertilizer = Math.max(0, Math.min(100, analysis.fertilizer || 20));
+
+        // If food is spoiled (high fertilizer), ensure human is very low
+        if (fertilizer > 70 && human > 20) {
+            human = Math.max(5, human * 0.3); // Reduce human score significantly
+            cattle = Math.min(cattle, 30);
+        }
+
+        // If food is fresh (low fertilizer), ensure human is high
+        if (fertilizer < 20 && human < 70) {
+            human = Math.max(human, 75);
+        }
+
+        console.log(`Gemini scores - Human: ${human}%, Cattle: ${cattle}%, Fertilizer: ${fertilizer}%`);
+
+        return {
+            human: Math.round(human),
+            cattle: Math.round(cattle),
+            fertilizer: Math.round(fertilizer),
+            recommendation: analysis.recommendation || "Analysis complete",
+            confidence: "high"
+        };
+
+    } catch (error) {
+        console.log("Gemini API unavailable:", error.message);
+        return null; // Signal to use fallback
     }
-
-    const data = await response.json();
-    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!responseText) throw new Error("No response text");
-
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON found");
-
-    const analysis = JSON.parse(jsonMatch[0]);
-
-    // Validate and normalize the scores
-    let human = Math.max(0, Math.min(100, analysis.human || 50));
-    let cattle = Math.max(0, Math.min(100, analysis.cattle || 30));
-    let fertilizer = Math.max(0, Math.min(100, analysis.fertilizer || 20));
-
-    // If food is spoiled (high fertilizer), ensure human is very low
-    if (fertilizer > 70 && human > 20) {
-      human = Math.max(5, human * 0.3); // Reduce human score significantly
-      cattle = Math.min(cattle, 30);
-    }
-
-    // If food is fresh (low fertilizer), ensure human is high
-    if (fertilizer < 20 && human < 70) {
-      human = Math.max(human, 75);
-    }
-
-    console.log(`Gemini scores - Human: ${human}%, Cattle: ${cattle}%, Fertilizer: ${fertilizer}%`);
-
-    return {
-      human: Math.round(human),
-      cattle: Math.round(cattle),
-      fertilizer: Math.round(fertilizer),
-      recommendation: analysis.recommendation || "Analysis complete",
-      confidence: "high"
-    };
-
-  } catch (error) {
-    console.log("Gemini API unavailable:", error.message);
-    return null; // Signal to use fallback
-  }
 }
 
 // ==========================================
@@ -598,120 +598,120 @@ ANALYSIS RULES:
 // ==========================================
 
 function keywordBasedTextAnalysis(description) {
-  try {
-    console.log("Using keyword-based text analysis (fallback)...");
+    try {
+        console.log("Using keyword-based text analysis (fallback)...");
 
-    // Convert to lowercase for keyword matching
-    const text = description.toLowerCase();
+        // Convert to lowercase for keyword matching
+        const text = description.toLowerCase();
 
-    // Define food quality indicators
-    const indicators = {
-      fresh_keywords: ['fresh', 'cooked today', 'new', 'today', 'just made', 'clean', 'good condition', 'perfect', 'excellent', 'well cooked'],
-      spoiled_keywords: ['moldy', 'rotten', 'decomposed', 'spoiled', 'bad', 'off', 'smell', 'sour', 'green mold', 'black mold', 'fungus', 'decaying', 'old'],
-      slightly_bad_keywords: ['old', 'few days', 'slightly', 'dark spots', 'minor', 'small mold', 'wrinkled', 'soft', '3 days old', '4 days old'],
-      cooked_keywords: ['cooked', 'prepared', 'rice', 'curry', 'bread', 'meal', 'fried', 'boiled', 'grilled', 'baked', 'roti', 'chapati'],
-      raw_keywords: ['raw', 'vegetable', 'fruit', 'fresh produce', 'uncooked']
-    };
+        // Define food quality indicators
+        const indicators = {
+            fresh_keywords: ['fresh', 'cooked today', 'new', 'today', 'just made', 'clean', 'good condition', 'perfect', 'excellent', 'well cooked'],
+            spoiled_keywords: ['moldy', 'rotten', 'decomposed', 'spoiled', 'bad', 'off', 'smell', 'sour', 'green mold', 'black mold', 'fungus', 'decaying', 'old'],
+            slightly_bad_keywords: ['old', 'few days', 'slightly', 'dark spots', 'minor', 'small mold', 'wrinkled', 'soft', '3 days old', '4 days old'],
+            cooked_keywords: ['cooked', 'prepared', 'rice', 'curry', 'bread', 'meal', 'fried', 'boiled', 'grilled', 'baked', 'roti', 'chapati'],
+            raw_keywords: ['raw', 'vegetable', 'fruit', 'fresh produce', 'uncooked']
+        };
 
-    let humanScore = 50;
-    let cattleScore = 30;
-    let fertilizerScore = 20;
-    let recommendation = "";
-    let reasoning = [];
+        let humanScore = 50;
+        let cattleScore = 30;
+        let fertilizerScore = 20;
+        let recommendation = "";
+        let reasoning = [];
 
-    // Check for spoilage indicators (most important)
-    let hasSpoiled = indicators.spoiled_keywords.some(keyword => text.includes(keyword));
-    let hasSlightlyBad = indicators.slightly_bad_keywords.some(keyword => text.includes(keyword));
+        // Check for spoilage indicators (most important)
+        let hasSpoiled = indicators.spoiled_keywords.some(keyword => text.includes(keyword));
+        let hasSlightlyBad = indicators.slightly_bad_keywords.some(keyword => text.includes(keyword));
 
-    if (hasSpoiled) {
-      humanScore = 5;
-      cattleScore = 10;
-      fertilizerScore = 85;
-      recommendation = "⚠️ This food shows signs of significant spoilage and decomposition. It's unsuitable for human or animal consumption but excellent for composting and fertilizer production. Send to fertilizer firms.";
-      reasoning.push("Spoilage detected");
-    } else if (hasSlightlyBad) {
-      humanScore = 20;
-      cattleScore = 40;
-      fertilizerScore = 40;
-      recommendation = "⚠️ This food shows minor spoilage signs. Not recommended for humans but can be used as animal feed. Can also be composted.";
-      reasoning.push("Minor spoilage detected");
-    } else {
-      // Check freshness
-      let hasFresh = indicators.fresh_keywords.some(keyword => text.includes(keyword));
-
-      if (hasFresh) {
-        humanScore = 85;
-        cattleScore = 10;
-        fertilizerScore = 5;
-        recommendation = "✅ Excellent! This food is fresh and safe for human consumption. Highly recommended for donation to those in need.";
-        reasoning.push("Fresh and clean");
-      } else {
-        // Check if cooked or raw
-        let isCooked = indicators.cooked_keywords.some(keyword => text.includes(keyword));
-        let isRaw = indicators.raw_keywords.some(keyword => text.includes(keyword));
-
-        if (isCooked) {
-          humanScore = 70;
-          cattleScore = 20;
-          fertilizerScore = 10;
-          recommendation = "✅ This cooked food appears suitable for human consumption. Safe to donate for immediate distribution.";
-          reasoning.push("Cooked food detected");
-        } else if (isRaw) {
-          humanScore = 75;
-          cattleScore = 15;
-          fertilizerScore = 10;
-          recommendation = "✅ This fresh produce is suitable for human consumption. Can be distributed to those in need.";
-          reasoning.push("Fresh produce detected");
+        if (hasSpoiled) {
+            humanScore = 5;
+            cattleScore = 10;
+            fertilizerScore = 85;
+            recommendation = "⚠️ This food shows signs of significant spoilage and decomposition. It's unsuitable for human or animal consumption but excellent for composting and fertilizer production. Send to fertilizer firms.";
+            reasoning.push("Spoilage detected");
+        } else if (hasSlightlyBad) {
+            humanScore = 20;
+            cattleScore = 40;
+            fertilizerScore = 40;
+            recommendation = "⚠️ This food shows minor spoilage signs. Not recommended for humans but can be used as animal feed. Can also be composted.";
+            reasoning.push("Minor spoilage detected");
         } else {
-          humanScore = 65;
-          cattleScore = 25;
-          fertilizerScore = 10;
-          recommendation = "✓ This food appears to be in acceptable condition. Suitable for human consumption with proper handling.";
-          reasoning.push("General assessment");
+            // Check freshness
+            let hasFresh = indicators.fresh_keywords.some(keyword => text.includes(keyword));
+
+            if (hasFresh) {
+                humanScore = 85;
+                cattleScore = 10;
+                fertilizerScore = 5;
+                recommendation = "✅ Excellent! This food is fresh and safe for human consumption. Highly recommended for donation to those in need.";
+                reasoning.push("Fresh and clean");
+            } else {
+                // Check if cooked or raw
+                let isCooked = indicators.cooked_keywords.some(keyword => text.includes(keyword));
+                let isRaw = indicators.raw_keywords.some(keyword => text.includes(keyword));
+
+                if (isCooked) {
+                    humanScore = 70;
+                    cattleScore = 20;
+                    fertilizerScore = 10;
+                    recommendation = "✅ This cooked food appears suitable for human consumption. Safe to donate for immediate distribution.";
+                    reasoning.push("Cooked food detected");
+                } else if (isRaw) {
+                    humanScore = 75;
+                    cattleScore = 15;
+                    fertilizerScore = 10;
+                    recommendation = "✅ This fresh produce is suitable for human consumption. Can be distributed to those in need.";
+                    reasoning.push("Fresh produce detected");
+                } else {
+                    humanScore = 65;
+                    cattleScore = 25;
+                    fertilizerScore = 10;
+                    recommendation = "✓ This food appears to be in acceptable condition. Suitable for human consumption with proper handling.";
+                    reasoning.push("General assessment");
+                }
+            }
         }
-      }
+
+        console.log(`Analysis reasoning: ${reasoning.join(', ')}`);
+
+        return {
+            human: humanScore,
+            cattle: cattleScore,
+            fertilizer: fertilizerScore,
+            recommendation: recommendation,
+            confidence: "high",
+            details: {
+                freshness: hasSpoiled ? "spoiled" : hasSlightlyBad ? "degraded" : "good",
+                condition: hasSpoiled ? "unsafe" : hasSlightlyBad ? "questionable" : "safe",
+                estimated_shelf_life: hasSpoiled ? "0 days" : hasSlightlyBad ? "1 day" : "3-5 days",
+                warnings: hasSpoiled ? ["Serious spoilage detected", "Not for human/animal consumption"] : hasSlightlyBad ? ["Minor spoilage present"] : [],
+                category: indicators.cooked_keywords.some(k => text.includes(k)) ? "Cooked Food" : "Raw/Fresh"
+            }
+        };
+
+    } catch (error) {
+        console.error("Error in keyword-based analysis:", error);
+        return getPlaceholderAnalysis();
     }
-
-    console.log(`Analysis reasoning: ${reasoning.join(', ')}`);
-
-    return {
-      human: humanScore,
-      cattle: cattleScore,
-      fertilizer: fertilizerScore,
-      recommendation: recommendation,
-      confidence: "high",
-      details: {
-        freshness: hasSpoiled ? "spoiled" : hasSlightlyBad ? "degraded" : "good",
-        condition: hasSpoiled ? "unsafe" : hasSlightlyBad ? "questionable" : "safe",
-        estimated_shelf_life: hasSpoiled ? "0 days" : hasSlightlyBad ? "1 day" : "3-5 days",
-        warnings: hasSpoiled ? ["Serious spoilage detected", "Not for human/animal consumption"] : hasSlightlyBad ? ["Minor spoilage present"] : [],
-        category: indicators.cooked_keywords.some(k => text.includes(k)) ? "Cooked Food" : "Raw/Fresh"
-      }
-    };
-
-  } catch (error) {
-    console.error("Error in keyword-based analysis:", error);
-    return getPlaceholderAnalysis();
-  }
 }
 
 async function performAIAnalysis(imageDataUrl) {
-  try {
-    console.log("Analyzing food image with Gemini...");
+    try {
+        console.log("Analyzing food image with Gemini...");
 
-    // Use Google Gemini API if available
-    if (process.env.GEMINI_API_KEY) {
-      return await analyzeWithGemini(imageDataUrl);
+        // Use Google Gemini API if available
+        if (process.env.GEMINI_API_KEY) {
+            return await analyzeWithGemini(imageDataUrl);
+        }
+
+        // Fallback to placeholder if no API key
+        console.log("⚠️ Gemini API key not configured, using placeholder analysis");
+        return getPlaceholderAnalysis();
+
+    } catch (error) {
+        console.error("Error in AI analysis:", error);
+        return getPlaceholderAnalysis(); // Fallback to default
     }
-
-    // Fallback to placeholder if no API key
-    console.log("⚠️ Gemini API key not configured, using placeholder analysis");
-    return getPlaceholderAnalysis();
-
-  } catch (error) {
-    console.error("Error in AI analysis:", error);
-    return getPlaceholderAnalysis(); // Fallback to default
-  }
 }
 
 // ==========================================
@@ -719,21 +719,21 @@ async function performAIAnalysis(imageDataUrl) {
 // ==========================================
 
 async function analyzeWithGemini(imageDataUrl) {
-  try {
-    console.log("Calling Google Gemini API for image analysis...");
+    try {
+        console.log("Calling Google Gemini API for image analysis...");
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY not configured");
-    }
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("GEMINI_API_KEY not configured");
+        }
 
-    // Extract base64 data from data URL
-    const base64Data = imageDataUrl.split(',')[1];
-    if (!base64Data) {
-      throw new Error("Invalid image format");
-    }
+        // Extract base64 data from data URL
+        const base64Data = imageDataUrl.split(',')[1];
+        if (!base64Data) {
+            throw new Error("Invalid image format");
+        }
 
-    const prompt = `You are a food safety and quality assessment expert. Analyze this food image carefully.
+        const prompt = `You are a food safety and quality assessment expert. Analyze this food image carefully.
 
 Assess suitability across three categories and respond ONLY with valid JSON:
 {
@@ -752,251 +752,251 @@ CRITICAL RULES:
 - If ANY signs of spoilage: reduce human%, increase fertilizer%
 - Explain food safety concerns in recommendation`;
 
-    // Use REST API directly with image
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
+        // Use REST API directly with image
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
             {
-              parts: [
-                {
-                  text: prompt,
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
                 },
-                {
-                  inlineData: {
-                    mimeType: "image/jpeg",
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [
+                                {
+                                    text: prompt,
+                                },
+                                {
+                                    inlineData: {
+                                        mimeType: "image/jpeg",
+                                        data: base64Data,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            }
+        );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates[0].content.parts[0].text;
+        console.log("✓ Gemini API image response received");
+
+        // Parse JSON from response
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            console.warn("Could not parse JSON from Gemini response");
+            return getPlaceholderAnalysis();
+        }
+
+        const analysis = JSON.parse(jsonMatch[0]);
+
+        // Validate and normalize scores
+        let human = Math.max(0, Math.min(100, analysis.human || 50));
+        let cattle = Math.max(0, Math.min(100, analysis.cattle || 30));
+        let fertilizer = Math.max(0, Math.min(100, analysis.fertilizer || 20));
+
+        // If food is spoiled (high fertilizer), ensure human is very low
+        if (fertilizer > 70 && human > 20) {
+            human = Math.max(5, human * 0.3); // Reduce human score significantly
+            cattle = Math.min(cattle, 30);
+        }
+
+        // If food is fresh (low fertilizer), ensure human is high
+        if (fertilizer < 20 && human < 70) {
+            human = Math.max(human, 75);
+        }
+
+        console.log(`✓ Gemini image analysis complete: Human=${Math.round(human)}%, Cattle=${Math.round(cattle)}%, Fertilizer=${Math.round(fertilizer)}%`);
+
+        return {
+            human: Math.round(human),
+            cattle: Math.round(cattle),
+            fertilizer: Math.round(fertilizer),
+            recommendation: analysis.recommendation || "Food analysis complete",
+            confidence: analysis.confidence || "high"
+        };
+
+    } catch (error) {
+        console.error("Gemini API image error:", error.message);
+        console.log("Falling back to placeholder analysis...");
+        return getPlaceholderAnalysis();
     }
-
-    const data = await response.json();
-    const responseText = data.candidates[0].content.parts[0].text;
-    console.log("✓ Gemini API image response received");
-
-    // Parse JSON from response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn("Could not parse JSON from Gemini response");
-      return getPlaceholderAnalysis();
-    }
-
-    const analysis = JSON.parse(jsonMatch[0]);
-
-    // Validate and normalize scores
-    let human = Math.max(0, Math.min(100, analysis.human || 50));
-    let cattle = Math.max(0, Math.min(100, analysis.cattle || 30));
-    let fertilizer = Math.max(0, Math.min(100, analysis.fertilizer || 20));
-
-    // If food is spoiled (high fertilizer), ensure human is very low
-    if (fertilizer > 70 && human > 20) {
-      human = Math.max(5, human * 0.3); // Reduce human score significantly
-      cattle = Math.min(cattle, 30);
-    }
-
-    // If food is fresh (low fertilizer), ensure human is high
-    if (fertilizer < 20 && human < 70) {
-      human = Math.max(human, 75);
-    }
-
-    console.log(`✓ Gemini image analysis complete: Human=${Math.round(human)}%, Cattle=${Math.round(cattle)}%, Fertilizer=${Math.round(fertilizer)}%`);
-
-    return {
-      human: Math.round(human),
-      cattle: Math.round(cattle),
-      fertilizer: Math.round(fertilizer),
-      recommendation: analysis.recommendation || "Food analysis complete",
-      confidence: analysis.confidence || "high"
-    };
-
-  } catch (error) {
-    console.error("Gemini API image error:", error.message);
-    console.log("Falling back to placeholder analysis...");
-    return getPlaceholderAnalysis();
-  }
 }
 
 // ==========================================
 // DECISION FUNCTION - DETERMINE PRIMARY USE
 // ==========================================
 function determineCategory(analysis) {
-  const { human, cattle, fertilizer } = analysis;
+    const { human, cattle, fertilizer } = analysis;
 
-  // Find the highest score
-  const maxScore = Math.max(human, cattle, fertilizer);
+    // Find the highest score
+    const maxScore = Math.max(human, cattle, fertilizer);
 
-  // Determine category based on highest score
-  if (human === maxScore && human >= 60) {
-    return {
-      category: "human",
-      emoji: "🧑",
-      label: "Human Consumption",
-      description: "BEST FOR: Human food donation and consumption",
-      color: "green"
-    };
-  } else if (cattle === maxScore && cattle >= 40 && cattle > human) {
-    return {
-      category: "cattle",
-      emoji: "🐄",
-      label: "Animal Feed",
-      description: "BEST FOR: Animal feed and livestock nutrition",
-      color: "blue"
-    };
-  } else if (fertilizer === maxScore && fertilizer >= 50) {
-    return {
-      category: "compost",
-      emoji: "🌱",
-      label: "Organic Compost",
-      description: "BEST FOR: Composting and organic fertilizer production",
-      color: "brown"
-    };
-  } else if (human > 50) {
-    return {
-      category: "human",
-      emoji: "🧑",
-      label: "Human Consumption",
-      description: "Can be used for human consumption with proper handling",
-      color: "green"
-    };
-  } else if (cattle > 30 && human < 50) {
-    return {
-      category: "cattle",
-      emoji: "🐄",
-      label: "Animal Feed",
-      description: "Suitable for animal feed after proper processing",
-      color: "blue"
-    };
-  } else {
-    return {
-      category: "compost",
-      emoji: "🌱",
-      label: "Organic Compost",
-      description: "Best used for composting and waste management",
-      color: "brown"
-    };
-  }
+    // Determine category based on highest score
+    if (human === maxScore && human >= 60) {
+        return {
+            category: "human",
+            emoji: "🧑",
+            label: "Human Consumption",
+            description: "BEST FOR: Human food donation and consumption",
+            color: "green"
+        };
+    } else if (cattle === maxScore && cattle >= 40 && cattle > human) {
+        return {
+            category: "cattle",
+            emoji: "🐄",
+            label: "Animal Feed",
+            description: "BEST FOR: Animal feed and livestock nutrition",
+            color: "blue"
+        };
+    } else if (fertilizer === maxScore && fertilizer >= 50) {
+        return {
+            category: "compost",
+            emoji: "🌱",
+            label: "Organic Compost",
+            description: "BEST FOR: Composting and organic fertilizer production",
+            color: "brown"
+        };
+    } else if (human > 50) {
+        return {
+            category: "human",
+            emoji: "🧑",
+            label: "Human Consumption",
+            description: "Can be used for human consumption with proper handling",
+            color: "green"
+        };
+    } else if (cattle > 30 && human < 50) {
+        return {
+            category: "cattle",
+            emoji: "🐄",
+            label: "Animal Feed",
+            description: "Suitable for animal feed after proper processing",
+            color: "blue"
+        };
+    } else {
+        return {
+            category: "compost",
+            emoji: "🌱",
+            label: "Organic Compost",
+            description: "Best used for composting and waste management",
+            color: "brown"
+        };
+    }
 }
 
 // ==========================================
 // COMBINE MULTIPLE ANALYSES FUNCTION
 // ==========================================
 function combineAnalyses(analyses) {
-  if (analyses.length === 0) {
-    return getPlaceholderAnalysis();
-  }
-
-  if (analyses.length === 1) {
-    return analyses[0].analysis;
-  }
-
-  // Combine multiple analyses by averaging scores
-  // But giving more weight to concerning indicators
-  let totalHuman = 0;
-  let totalCattle = 0;
-  let totalFertilizer = 0;
-  let hasSpoilage = false;
-  let spoilageCount = 0;
-
-  analyses.forEach(({ analysis }) => {
-    totalHuman += analysis.human || 0;
-    totalCattle += analysis.cattle || 0;
-    totalFertilizer += analysis.fertilizer || 0;
-
-    // If any analysis shows spoilage, treat conservatively
-    if (analysis.fertilizer > 60) {
-      hasSpoilage = true;
-      spoilageCount++;
+    if (analyses.length === 0) {
+        return getPlaceholderAnalysis();
     }
-  });
 
-  const count = analyses.length;
-  let human = Math.round(totalHuman / count);
-  let cattle = Math.round(totalCattle / count);
-  let fertilizer = Math.round(totalFertilizer / count);
-
-  // If spoilage detected in any source, significantly reduce human and cattle scores
-  if (hasSpoilage) {
-    // Reduce both human and animal feed to very low levels
-    human = Math.max(5, Math.round(human * 0.2)); // Very low for humans (20% of average)
-    cattle = Math.max(5, Math.round(cattle * 0.2)); // Very low for animals (20% of average)
-
-    // Increase compost recommendation significantly
-    fertilizer = Math.min(100, Math.round(fertilizer * 1.2 + 10));
-  }
-
-  // Ensure scores make logical sense
-  human = Math.max(0, Math.min(100, human));
-  cattle = Math.max(0, Math.min(100, cattle));
-  fertilizer = Math.max(0, Math.min(100, fertilizer));
-
-  // Build combined recommendation
-  let combinedRecommendation = "Food analyzed using multiple sources (text + images): ";
-  const recommendations = analyses.map(a => a.analysis.recommendation).filter(r => r);
-  combinedRecommendation += recommendations.join(" | ");
-
-  return {
-    human: human,
-    cattle: cattle,
-    fertilizer: fertilizer,
-    recommendation: combinedRecommendation,
-    confidence: "high",
-    details: {
-      analysis_method: "Combined AI analysis (text + image)",
-      sources: analyses.map(a => a.type),
-      combined_from: analyses.length,
-      has_spoilage_indicators: hasSpoilage
+    if (analyses.length === 1) {
+        return analyses[0].analysis;
     }
-  };
+
+    // Combine multiple analyses by averaging scores
+    // But giving more weight to concerning indicators
+    let totalHuman = 0;
+    let totalCattle = 0;
+    let totalFertilizer = 0;
+    let hasSpoilage = false;
+    let spoilageCount = 0;
+
+    analyses.forEach(({ analysis }) => {
+        totalHuman += analysis.human || 0;
+        totalCattle += analysis.cattle || 0;
+        totalFertilizer += analysis.fertilizer || 0;
+
+        // If any analysis shows spoilage, treat conservatively
+        if (analysis.fertilizer > 60) {
+            hasSpoilage = true;
+            spoilageCount++;
+        }
+    });
+
+    const count = analyses.length;
+    let human = Math.round(totalHuman / count);
+    let cattle = Math.round(totalCattle / count);
+    let fertilizer = Math.round(totalFertilizer / count);
+
+    // If spoilage detected in any source, significantly reduce human and cattle scores
+    if (hasSpoilage) {
+        // Reduce both human and animal feed to very low levels
+        human = Math.max(5, Math.round(human * 0.2)); // Very low for humans (20% of average)
+        cattle = Math.max(5, Math.round(cattle * 0.2)); // Very low for animals (20% of average)
+
+        // Increase compost recommendation significantly
+        fertilizer = Math.min(100, Math.round(fertilizer * 1.2 + 10));
+    }
+
+    // Ensure scores make logical sense
+    human = Math.max(0, Math.min(100, human));
+    cattle = Math.max(0, Math.min(100, cattle));
+    fertilizer = Math.max(0, Math.min(100, fertilizer));
+
+    // Build combined recommendation
+    let combinedRecommendation = "Food analyzed using multiple sources (text + images): ";
+    const recommendations = analyses.map(a => a.analysis.recommendation).filter(r => r);
+    combinedRecommendation += recommendations.join(" | ");
+
+    return {
+        human: human,
+        cattle: cattle,
+        fertilizer: fertilizer,
+        recommendation: combinedRecommendation,
+        confidence: "high",
+        details: {
+            analysis_method: "Combined AI analysis (text + image)",
+            sources: analyses.map(a => a.type),
+            combined_from: analyses.length,
+            has_spoilage_indicators: hasSpoilage
+        }
+    };
 }
 
 // Helper function to extract structured analysis if JSON parsing fails
 function extractStructuredAnalysis(responseText) {
-  console.log("Extracting structured analysis from Gemini response...");
+    console.log("Extracting structured analysis from Gemini response...");
 
-  const text = responseText.toLowerCase();
+    const text = responseText.toLowerCase();
 
-  let human = 50, cattle = 30, fertilizer = 20;
-  let recommendation = responseText.substring(0, 200) || "Food analysis completed. See details for recommendations.";
+    let human = 50, cattle = 30, fertilizer = 20;
+    let recommendation = responseText.substring(0, 200) || "Food analysis completed. See details for recommendations.";
 
-  // Simple heuristic extraction if JSON fails
-  if (text.includes("spoil") || text.includes("mold") || text.includes("rot")) {
-    human = 10; cattle = 15; fertilizer = 75;
-    recommendation = "⚠️ Spoilage detected. Not recommended for human consumption. Best used for composting.";
-  } else if (text.includes("fresh") && text.includes("good")) {
-    human = 85; cattle = 10; fertilizer = 5;
-    recommendation = "✅ Fresh food in good condition. Suitable for human consumption and donation.";
-  } else if (text.includes("cooked") && !text.includes("spoil")) {
-    human = 75; cattle = 15; fertilizer = 10;
-    recommendation = "✅ Cooked food appears safe. Suitable for donation.";
-  }
-
-  return {
-    human,
-    cattle,
-    fertilizer,
-    recommendation,
-    confidence: "medium",
-    details: {
-      freshness: human > 70 ? "fresh" : human > 40 ? "degraded" : "spoiled",
-      condition: human > 70 ? "safe" : human > 40 ? "questionable" : "unsafe",
-      category: text.includes("cooked") ? "Cooked Food" : "Other"
+    // Simple heuristic extraction if JSON fails
+    if (text.includes("spoil") || text.includes("mold") || text.includes("rot")) {
+        human = 10; cattle = 15; fertilizer = 75;
+        recommendation = "⚠️ Spoilage detected. Not recommended for human consumption. Best used for composting.";
+    } else if (text.includes("fresh") && text.includes("good")) {
+        human = 85; cattle = 10; fertilizer = 5;
+        recommendation = "✅ Fresh food in good condition. Suitable for human consumption and donation.";
+    } else if (text.includes("cooked") && !text.includes("spoil")) {
+        human = 75; cattle = 15; fertilizer = 10;
+        recommendation = "✅ Cooked food appears safe. Suitable for donation.";
     }
-  };
+
+    return {
+        human,
+        cattle,
+        fertilizer,
+        recommendation,
+        confidence: "medium",
+        details: {
+            freshness: human > 70 ? "fresh" : human > 40 ? "degraded" : "spoiled",
+            condition: human > 70 ? "safe" : human > 40 ? "questionable" : "unsafe",
+            category: text.includes("cooked") ? "Cooked Food" : "Other"
+        }
+    };
 }
 
 
@@ -1007,20 +1007,20 @@ function extractStructuredAnalysis(responseText) {
 // ==============================================
 
 function getPlaceholderAnalysis() {
-  return {
-    human: 70,        // 70% suitable for human consumption
-    cattle: 20,       // 20% suitable as animal feed
-    fertilizer: 10,   // 10% decomposable to fertilizer
-    recommendation: "✓ This food appears to be in good condition. It's suitable for human consumption. You can donate it to those in need. When real AI integration is active, this will provide detailed analysis of freshness, food type, and safety concerns.",
-    confidence: "medium",
-    details: {
-      freshness: "good",
-      condition: "safe",
-      estimated_shelf_life: "2-3 days",
-      warnings: ["AI backend not configured - Using placeholder analysis"],
-      note: "Integrate real AI (OpenAI, Gemini, or Google Vision) in production"
-    }
-  };
+    return {
+        human: 70,        // 70% suitable for human consumption
+        cattle: 20,       // 20% suitable as animal feed
+        fertilizer: 10,   // 10% decomposable to fertilizer
+        recommendation: "✓ This food appears to be in good condition. It's suitable for human consumption. You can donate it to those in need. When real AI integration is active, this will provide detailed analysis of freshness, food type, and safety concerns.",
+        confidence: "medium",
+        details: {
+            freshness: "good",
+            condition: "safe",
+            estimated_shelf_life: "2-3 days",
+            warnings: ["AI backend not configured - Using placeholder analysis"],
+            note: "Integrate real AI (OpenAI, Gemini, or Google Vision) in production"
+        }
+    };
 }
 
 
@@ -1159,65 +1159,65 @@ async function analyzeWithGoogleVision(imageDataUrl) {
 // UPDATE USER PROFILE
 // ================================================
 exports.updateProfile = async (req, res) => {
-  try {
-    // Get token and verify user
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: "No token provided" });
-    }
-
-    const token = authHeader.split(' ')[1];
-    let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (jwtError) {
-      return res.status(401).json({ message: "Invalid or expired token" });
+        // Get token and verify user
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (jwtError) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Get fields to update
+        const { name, phone, location } = req.body;
+
+        // Validate input
+        if (!name || name.trim() === '') {
+            return res.status(400).json({ message: "Name is required" });
+        }
+
+        // Update user
+        const updatedUser = await User.findByIdAndUpdate(
+            user._id,
+            {
+                name: name.trim(),
+                phone: phone ? phone.trim() : user.phone,
+                location: location ? location.trim() : user.location
+            },
+            { new: true }
+        );
+
+        console.log(`✓ Profile updated for user: ${user.email}`);
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            user: {
+                id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                phone: updatedUser.phone,
+                location: updatedUser.location
+            }
+        });
+
+    } catch (error) {
+        console.error("Error updating profile:", error);
+        res.status(500).json({
+            message: "Failed to update profile",
+            error: error.message
+        });
     }
-
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Get fields to update
-    const { name, phone, location } = req.body;
-
-    // Validate input
-    if (!name || name.trim() === '') {
-      return res.status(400).json({ message: "Name is required" });
-    }
-
-    // Update user
-    const updatedUser = await User.findByIdAndUpdate(
-      user._id,
-      {
-        name: name.trim(),
-        phone: phone ? phone.trim() : user.phone,
-        location: location ? location.trim() : user.location
-      },
-      { new: true }
-    );
-
-    console.log(`✓ Profile updated for user: ${user.email}`);
-
-    res.status(200).json({
-      message: "Profile updated successfully",
-      user: {
-        id: updatedUser._id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        location: updatedUser.location
-      }
-    });
-
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    res.status(500).json({
-      message: "Failed to update profile",
-      error: error.message
-    });
-  }
 };
 
 
@@ -1225,67 +1225,67 @@ exports.updateProfile = async (req, res) => {
 // CHANGE PASSWORD
 // ================================================
 exports.changePassword = async (req, res) => {
-  try {
-    // Get token and verify user
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: "No token provided" });
-    }
-
-    const token = authHeader.split(' ')[1];
-    let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (jwtError) {
-      return res.status(401).json({ message: "Invalid or expired token" });
+        // Get token and verify user
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (jwtError) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Get passwords from request body
+        const { currentPassword, newPassword } = req.body;
+
+        // Validate input
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: "Current password and new password are required" });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "New password must be at least 6 characters long" });
+        }
+
+        if (currentPassword === newPassword) {
+            return res.status(400).json({ message: "New password must be different from current password" });
+        }
+
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: "Current password is incorrect" });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update password
+        await User.findByIdAndUpdate(user._id, {
+            password: hashedPassword
+        });
+
+        console.log(`✓ Password changed for user: ${user.email}`);
+
+        res.status(200).json({
+            message: "Password changed successfully"
+        });
+
+    } catch (error) {
+        console.error("Error changing password:", error);
+        res.status(500).json({
+            message: "Failed to change password",
+            error: error.message
+        });
     }
-
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Get passwords from request body
-    const { currentPassword, newPassword } = req.body;
-
-    // Validate input
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: "Current password and new password are required" });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: "New password must be at least 6 characters long" });
-    }
-
-    if (currentPassword === newPassword) {
-      return res.status(400).json({ message: "New password must be different from current password" });
-    }
-
-    // Verify current password
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Current password is incorrect" });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // Update password
-    await User.findByIdAndUpdate(user._id, {
-      password: hashedPassword
-    });
-
-    console.log(`✓ Password changed for user: ${user.email}`);
-
-    res.status(200).json({
-      message: "Password changed successfully"
-    });
-
-  } catch (error) {
-    console.error("Error changing password:", error);
-    res.status(500).json({
-      message: "Failed to change password",
-      error: error.message
-    });
-  }
 };

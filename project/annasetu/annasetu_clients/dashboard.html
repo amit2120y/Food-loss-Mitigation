@@ -22,6 +22,7 @@
         <a href="#" class="nav-link active"><i class="fa fa-home"></i> Dashboard</a>
         <a href="addfood.html" class="nav-link"><i class="fa fa-plus-circle"></i> Add Food</a>
         <a href="browse.html" class="nav-link"><i class="fa fa-utensils"></i> Browse Food</a>
+        <a href="manage-requests.html" class="nav-link"><i class="fa fa-tasks"></i> Manage Requests</a>
         <a href="notifications.html" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
         <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
         <a href="index.html" class="nav-link logout">
@@ -134,6 +135,47 @@
             <td><button class="btn-request">Request</button></td>
           </tr>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT DONATION MODAL -->
+  <div id="editModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Update Quantity</h2>
+        <button class="close-btn" onclick="closeEditModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-info-box">
+          <p><strong>Note:</strong> You can only change the quantity of your donation. Other details cannot be modified
+            once posted.</p>
+        </div>
+
+        <div class="form-group">
+          <label>Food Name:</label>
+          <div class="read-only-field" id="displayFoodName"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Type:</label>
+          <div class="read-only-field" id="displayFoodType"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Location:</label>
+          <div class="read-only-field" id="displayLocation"></div>
+        </div>
+
+        <form id="editForm">
+          <div class="form-group">
+            <label for="editQuantity">Quantity: <span style="color: #f44336;">*</span></label>
+            <input type="text" id="editQuantity" placeholder="e.g., 10 plates, 2 kg" required>
+          </div>
+
+          <button type="submit" class="btn-submit">Save Quantity</button>
+        </form>
       </div>
     </div>
   </div>

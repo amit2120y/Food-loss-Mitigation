@@ -209,9 +209,9 @@ function createDonationCard(donation) {
           </p>
         ` : ''}
 
-        <button class="request-btn" onclick="openRequestModal('${donation._id}', '${donation.food.replace(/'/g, "\\'")}', '${donorName.replace(/'/g, "\\'")}')">
-          <i class="fa fa-handshake"></i> Request Food
-        </button>
+        <div class="claim-action">
+          ${getClaimButton(donation)}
+        </div>
       </div>
     </div>
   `;
@@ -233,6 +233,78 @@ function getFoodIcon(foodType) {
     'Vegan': '🌱'
   };
   return icons[foodType] || '🍽️';
+}
+
+// Get claim button based on donation status and user claims
+function getClaimButton(donation) {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    if (!user) return '';
+
+    // User object can have 'id', '_id', or 'email'
+    const userId = user.id || user._id || user.email;
+    if (!userId) return '';
+
+    // Check if user has already claimed this donation
+    const userClaim = donation.claims?.find(c => {
+      try {
+        // Claims array uses 'userId' field, not 'claimedBy'
+        const claimUserId = typeof c.userId === 'object' ? c.userId?.toString() : String(c.userId);
+        return claimUserId === userId;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (userClaim) {
+      const statusColors = {
+        'pending': '#ff9800',
+        'accepted': '#4caf50',
+        'rejected': '#f44336'
+      };
+      const statusIcons = {
+        'pending': 'fa-hourglass-half',
+        'accepted': 'fa-check-circle',
+        'rejected': 'fa-times-circle'
+      };
+      const statusText = {
+        'pending': 'Pending',
+        'accepted': 'Accepted',
+        'rejected': 'Rejected'
+      };
+
+      return `
+        <button class="claim-status-btn" style="background: ${statusColors[userClaim.status]};" disabled>
+          <i class="fa ${statusIcons[userClaim.status]}"></i> ${statusText[userClaim.status]}
+        </button>
+      `;
+    }
+
+    // Show claim button if not claimed by anyone
+    if (donation.status === 'Available') {
+      return `
+        <button class="claim-btn" onclick="handleClaimDonation('${donation._id}', '${donation.food.replace(/'/g, "\\'")}')">
+          <i class="fa fa-star"></i> Claim Food
+        </button>
+      `;
+    }
+
+    // Show status for claimed/completed donations
+    const statusText = {
+      'Claimed': '🔒 Already Claimed',
+      'Completed': '✅ Completed',
+      'Expired': '⏰ Expired'
+    };
+
+    return `
+      <button class="claim-btn disabled" style="opacity: 0.6;" disabled>
+        ${statusText[donation.status] || donation.status}
+      </button>
+    `;
+  } catch (error) {
+    console.error('Error in getClaimButton:', error);
+    return '<button class="claim-btn disabled" style="opacity: 0.6;" disabled>--</button>';
+  }
 }
 
 // Get quality badge for AI analysis (with caching)
@@ -333,9 +405,9 @@ const modalCache = {
   details: null,
 
   init() {
-    this.modal = document.getElementById('requestModal');
-    this.form = document.getElementById('requestForm');
-    this.details = document.getElementById('donationDetails');
+    this.modal = document.getElementById('claimModal');
+    this.form = document.getElementById('claimForm');
+    this.details = document.getElementById('claimDetails');
   },
 
   show() {
@@ -351,32 +423,31 @@ const modalCache = {
   }
 };
 
-// Open request modal
-function openRequestModal(donationId, foodName, donorName) {
+// Handle claim food button
+async function handleClaimDonation(donationId, foodName) {
   selectedDonation = {
     id: donationId,
-    food: foodName,
-    donor: donorName
+    food: foodName
   };
 
   // Populate donation details in modal - with sanitization
   const sanitizedFood = String(foodName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const sanitizedDonor = String(donorName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  modalCache.details.innerHTML = `
-    <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">
-      🍽️ <strong>${sanitizedFood}</strong>
-    </div>
-    <div style="font-size: 13px; color: #666;">
-      From: <strong>${sanitizedDonor}</strong>
-    </div>
-  `;
+  if (modalCache.details) {
+    modalCache.details.innerHTML = `
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 15px;">
+        🍽️ <strong>${sanitizedFood}</strong>
+      </div>
+      <p style="font-size: 13px; color: #666; margin-bottom: 20px;">
+        Are you sure you want to claim this food? The donor will receive a notification about your request.
+      </p>
+    `;
+  }
 
   // Show modal
   modalCache.show();
-  modalCache.form.reset();
 
-  console.log(`Modal opened for donation: ${donationId}`);
+  console.log(`Claim modal opened for donation: ${donationId}`);
 }
 
 // Close modal
@@ -385,9 +456,9 @@ function closeModal() {
   selectedDonation = null;
 }
 
-// Handle form submission
+// Handle claim form submission
 document.addEventListener('submit', async (e) => {
-  if (e.target.id !== 'requestForm') return;
+  if (e.target.id !== 'claimForm') return;
 
   e.preventDefault();
 
@@ -396,40 +467,67 @@ document.addEventListener('submit', async (e) => {
     return;
   }
 
-  const quantity = document.getElementById('quantity').value.trim();
-  const message = document.getElementById('message').value.trim();
-  const phone = document.getElementById('phone').value.trim();
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user'));
 
-  if (!quantity || !phone) {
-    alert('Please fill in required fields');
-    return;
-  }
-
   try {
-    console.log(`Sending request for donation: ${selectedDonation.id}`);
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting Request...';
 
-    // Note: This would typically send to a donation request endpoint
-    // For now, we'll just show a success message
-    // In production, you'd implement:
-    // POST /api/donations/request with { donationId, quantity, message, phone }
+    // Collect form data
+    const claimData = {
+      purpose: document.getElementById('claimPurpose').value,
+      beneficiaries: parseInt(document.getElementById('claimBeneficiaries').value),
+      address: document.getElementById('claimAddress').value,
+      preferredPickupTime: document.getElementById('claimPickupTime').value || null,
+      notes: document.getElementById('claimNotes').value
+    };
 
-    alert(`✅ Request sent to ${selectedDonation.donor} for ${quantity}!\n\nThey will contact you at ${phone}`);
+    const response = await fetch(`http://localhost:5000/api/donations/${selectedDonation.id}/claim`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(claimData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[CLAIM-SUBMIT] Error response:', errorData);
+      throw new Error(errorData.message || 'Failed to submit claim request');
+    }
+
+    const data = await response.json();
+
+    alert(`✅ Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
     closeModal();
-    document.getElementById('requestForm').reset();
 
-    console.log('✓ Request sent successfully');
+    // Reload donations to update button status (non-blocking)
+    try {
+      await loadDonations();
+    } catch (reloadError) {
+      // Don't throw - reload is not critical
+    }
+
   } catch (error) {
-    console.error('Error sending request:', error);
-    alert('Error sending request. Please try again.');
+    console.error('Error submitting claim request:', error);
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa fa-check"></i> Submit Claim Request';
+    }
   }
 });
 
 // Close modal when clicking outside
 document.addEventListener('click', (e) => {
-  const modal = document.getElementById('requestModal');
+  const modal = document.getElementById('claimModal');
   if (e.target === modal) {
     closeModal();
   }
 });
+

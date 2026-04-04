@@ -2,45 +2,56 @@ const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+// Helper function to detect and handle MongoDB network errors
+function handleDatabaseError(error) {
+  if (error.name === 'MongoNetworkError' || error.name === 'MongoNetworkTimeoutError') {
+    return {
+      status: 503,
+      message: "Database temporarily unavailable. Please check your internet connection and try again.",
+      isDatabaseError: true
+    };
+  }
+  return null;
+}
 
 // REGISTER
 
 exports.registerUser = async (req, res) => {
 
-    try {
+  try {
 
-        const { name, email, phone, password } = req.body;
+    const { name, email, phone, password } = req.body;
 
-        // Validate input
-        if (!name || !email || !phone || !password) {
-            return res.status(400).json({ message: "Please provide all required fields" });
-        }
-
-        // check if user exists
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            return res.status(400).json({ message: "User already exists with this email" });
-        }
-
-        // hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-// create user
-const user = await User.create({
-name,
-email,
-phone,
-password: hashedPassword
-});
-
-        console.log("User registered successfully:", user.email);
-        res.status(201).json({ message: "User registered successfully", userId: user._id });
-
-    } catch (error) {
-        console.error("Registration error:", error.message);
-        res.status(500).json({ message: "Registration failed", error: error.message });
+    // Validate input
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({ message: "Please provide all required fields" });
     }
+
+    // check if user exists
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists with this email" });
+    }
+
+    // hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // create user
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password: hashedPassword
+    });
+
+    console.log("User registered successfully:", user.email);
+    res.status(201).json({ message: "User registered successfully", userId: user._id });
+
+  } catch (error) {
+    console.error("Registration error:", error.message);
+    res.status(500).json({ message: "Registration failed", error: error.message });
+  }
 
 };
 
@@ -50,59 +61,59 @@ password: hashedPassword
 
 exports.loginUser = async (req, res) => {
 
-    try {
+  try {
 
-        const { email, password } = req.body;
+    const { email, password } = req.body;
 
-        // Validate input
-        if (!email || !password) {
-            return res.status(400).json({ message: "Please provide email and password" });
-        }
-
-        // check user
-        const user = await User.findOne({ email });
-
-        if (!user) {
-            return res.status(401).json({ message: "Invalid email or password" });
-        }
-
-        // compare password
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid email or password" });
-        }
-
-        // Ensure JWT secret exists
-        const jwtSecret = process.env.JWT_SECRET;
-        if (!jwtSecret) {
-            console.error("JWT_SECRET is not defined in environment variables.");
-            return res.status(500).json({ message: "Server configuration error: JWT secret is missing" });
-        }
-
-        // create token
-        const token = jwt.sign(
-            { id: user._id },
-            jwtSecret,
-            { expiresIn: "7d" }
-        );
-
-        console.log("User logged in successfully:", user.email);
-
-        res.status(200).json({
-            message: "Login successful",
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email
-            }
-        });
-
-    } catch (error) {
-        console.error("Login error:", error.message);
-        res.status(500).json({ message: "Login failed", error: error.message });
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please provide email and password" });
     }
+
+    // check user
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Ensure JWT secret exists
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("JWT_SECRET is not defined in environment variables.");
+      return res.status(500).json({ message: "Server configuration error: JWT secret is missing" });
+    }
+
+    // create token
+    const token = jwt.sign(
+      { id: user._id },
+      jwtSecret,
+      { expiresIn: "7d" }
+    );
+
+    console.log("User logged in successfully:", user.email);
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error("Login error:", error.message);
+    res.status(500).json({ message: "Login failed", error: error.message });
+  }
 
 };
 
@@ -110,99 +121,99 @@ exports.loginUser = async (req, res) => {
 // GOOGLE OAUTH CALLBACK
 
 exports.googleCallback = async (req, res) => {
-try {
-const { id, displayName, emails, photos } = req.user;
-const email = emails[0].value;
-const profilePicture = photos[0]?.value || null;
+  try {
+    const { id, displayName, emails, photos } = req.user;
+    const email = emails[0].value;
+    const profilePicture = photos[0]?.value || null;
 
-// Check if user exists
-let user = await User.findOne({ googleId: id });
+    // Check if user exists
+    let user = await User.findOne({ googleId: id });
 
-if (!user) {
-// Check if email already exists (email/password user)
-let existingEmailUser = await User.findOne({ email });
-  
-if (existingEmailUser) {
-// Update existing user with Google info
-user = await User.findByIdAndUpdate(
-existingEmailUser._id,
-{
-googleId: id,
-googleName: displayName,
-googleEmail: email,
-googleProfilePicture: profilePicture,
-authMethod: 'google'
-},
-{ new: true }
-);
-} else {
-// Create new user
-user = await User.create({
-name: displayName,
-email,
-googleId: id,
-googleName: displayName,
-googleEmail: email,
-googleProfilePicture: profilePicture,
-authMethod: 'google'
-});
-}
-}
+    if (!user) {
+      // Check if email already exists (email/password user)
+      let existingEmailUser = await User.findOne({ email });
 
-// Create JWT token
-const token = jwt.sign(
-{ id: user._id },
-process.env.JWT_SECRET,
-{ expiresIn: "7d" }
-);
+      if (existingEmailUser) {
+        // Update existing user with Google info
+        user = await User.findByIdAndUpdate(
+          existingEmailUser._id,
+          {
+            googleId: id,
+            googleName: displayName,
+            googleEmail: email,
+            googleProfilePicture: profilePicture,
+            authMethod: 'google'
+          },
+          { new: true }
+        );
+      } else {
+        // Create new user
+        user = await User.create({
+          name: displayName,
+          email,
+          googleId: id,
+          googleName: displayName,
+          googleEmail: email,
+          googleProfilePicture: profilePicture,
+          authMethod: 'google'
+        });
+      }
+    }
 
-console.log("User logged in with Google:", email);
+    // Create JWT token
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-// Redirect to frontend with token
-res.redirect(`http://localhost:5000/dashboard.html?token=${token}&userId=${user._id}&userName=${encodeURIComponent(user.name)}&userEmail=${encodeURIComponent(user.email)}`);
+    console.log("User logged in with Google:", email);
 
-} catch (error) {
-console.error("Google callback error:", error);
-res.status(500).json({ message: "Google authentication failed", error: error.message });
-}
+    // Redirect to frontend with token
+    res.redirect(`http://localhost:5000/dashboard.html?token=${token}&userId=${user._id}&userName=${encodeURIComponent(user.name)}&userEmail=${encodeURIComponent(user.email)}`);
+
+  } catch (error) {
+    console.error("Google callback error:", error);
+    res.status(500).json({ message: "Google authentication failed", error: error.message });
+  }
 };
 
 
 // GOOGLE LOGIN SUCCESS - returns user data
 
 exports.getGoogleLoginSuccess = async (req, res) => {
-try {
-// Extract token from query or headers
-const token = req.query.token || req.headers.authorization?.split(' ')[1];
-const userId = req.query.userId;
+  try {
+    // Extract token from query or headers
+    const token = req.query.token || req.headers.authorization?.split(' ')[1];
+    const userId = req.query.userId;
 
-if (!token) {
-return res.status(401).json({ message: "No token provided" });
-}
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
 
-// Verify token
-const decoded = jwt.verify(token, process.env.JWT_SECRET);
-const user = await User.findById(decoded.id);
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
 
-if (!user) {
-return res.status(404).json({ message: "User not found" });
-}
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-res.status(200).json({
-message: "Google login successful",
-token,
-user: {
-id: user._id,
-name: user.name,
-email: user.email,
-profilePicture: user.googleProfilePicture
-}
-});
+    res.status(200).json({
+      message: "Google login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        profilePicture: user.googleProfilePicture
+      }
+    });
 
-} catch (error) {
-console.error("Error getting Google login success:", error);
-res.status(500).json({ message: "Failed to process login", error: error.message });
-}
+  } catch (error) {
+    console.error("Error getting Google login success:", error);
+    res.status(500).json({ message: "Failed to process login", error: error.message });
+  }
 };
 
 
@@ -217,7 +228,7 @@ exports.getUserStats = async (req, res) => {
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
@@ -244,7 +255,14 @@ exports.getUserStats = async (req, res) => {
 
   } catch (error) {
     console.error("Error getting user stats:", error);
-    res.status(401).json({ message: "Invalid token or failed to fetch stats", error: error.message });
+
+    // Check if it's a database connectivity issue
+    const dbError = handleDatabaseError(error);
+    if (dbError) {
+      return res.status(dbError.status).json({ message: dbError.message });
+    }
+
+    res.status(500).json({ message: "Invalid token or failed to fetch stats", error: error.message });
   }
 };
 
@@ -276,9 +294,9 @@ exports.analyzeFoodWithAI = async (req, res) => {
 
     console.log(`\n=== AI Food Analysis Request ===`);
     console.log(`User: ${user.email}`);
-    
+
     let analysis;
-    
+
     if (description && description.trim()) {
       console.log(`Analyzing text description: "${description.substring(0, 50)}..."`);
       analysis = await performTextAnalysis(description);
@@ -334,7 +352,7 @@ async function performTextAnalysis(description) {
     // Check for spoilage indicators (most important)
     let hasSpoiled = indicators.spoiled_keywords.some(keyword => text.includes(keyword));
     let hasSlightlyBad = indicators.slightly_bad_keywords.some(keyword => text.includes(keyword));
-    
+
     if (hasSpoiled) {
       humanScore = 5;
       cattleScore = 10;
@@ -350,7 +368,7 @@ async function performTextAnalysis(description) {
     } else {
       // Check freshness
       let hasFresh = indicators.fresh_keywords.some(keyword => text.includes(keyword));
-      
+
       if (hasFresh) {
         humanScore = 85;
         cattleScore = 10;
@@ -361,7 +379,7 @@ async function performTextAnalysis(description) {
         // Check if cooked or raw
         let isCooked = indicators.cooked_keywords.some(keyword => text.includes(keyword));
         let isRaw = indicators.raw_keywords.some(keyword => text.includes(keyword));
-        
+
         if (isCooked) {
           humanScore = 70;
           cattleScore = 20;
@@ -605,3 +623,139 @@ async function analyzeWithGoogleVision(imageDataUrl) {
   }
 }
 */
+
+
+// ================================================
+// UPDATE USER PROFILE
+// ================================================
+exports.updateProfile = async (req, res) => {
+  try {
+    // Get token and verify user
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get fields to update
+    const { name, phone, location } = req.body;
+
+    // Validate input
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ message: "Name is required" });
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        name: name.trim(),
+        phone: phone ? phone.trim() : user.phone,
+        location: location ? location.trim() : user.location
+      },
+      { new: true }
+    );
+
+    console.log(`✓ Profile updated for user: ${user.email}`);
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        location: updatedUser.location
+      }
+    });
+
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({
+      message: "Failed to update profile",
+      error: error.message
+    });
+  }
+};
+
+
+// ================================================
+// CHANGE PASSWORD
+// ================================================
+exports.changePassword = async (req, res) => {
+  try {
+    // Get token and verify user
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get passwords from request body
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current password and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters long" });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: "New password must be different from current password" });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await User.findByIdAndUpdate(user._id, {
+      password: hashedPassword
+    });
+
+    console.log(`✓ Password changed for user: ${user.email}`);
+
+    res.status(200).json({
+      message: "Password changed successfully"
+    });
+
+  } catch (error) {
+    console.error("Error changing password:", error);
+    res.status(500).json({
+      message: "Failed to change password",
+      error: error.message
+    });
+  }
+};

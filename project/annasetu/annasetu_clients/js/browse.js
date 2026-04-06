@@ -279,8 +279,8 @@ function createDonationCard(donation) {
         </div>
 
         <div class="donor-info">
-          <div class="donor-name">👤 ${donorName}</div>
-          <div class="donor-location">📍 ${donorLocation}</div>
+          <div class="donor-name"><i class="fa fa-user"></i> ${donorName}</div>
+          <div class="donor-location"><i class="fa fa-map-marker"></i> ${donorLocation}</div>
         </div>
 
         ${donation.aiAnalysis?.recommendation ? `
@@ -564,7 +564,7 @@ function setupMapToggle() {
   toggleBtn.addEventListener('click', () => {
     if (mapDiv.style.display === 'none') {
       mapDiv.style.display = 'block';
-      toggleBtn.textContent = '📍 Hide Map';
+      toggleBtn.textContent = 'Hide Map';
 
       // Initialize map if not already done
       if (!donationMap) {
@@ -576,7 +576,7 @@ function setupMapToggle() {
       }
     } else {
       mapDiv.style.display = 'none';
-      toggleBtn.textContent = '📍 Show Map';
+      toggleBtn.textContent = 'Show Map';
     }
   });
 }
@@ -609,7 +609,7 @@ function initializeDonationMap() {
       opacity: 0.8,
       fillOpacity: 0.8,
       title: 'Your Location'
-    }).addTo(donationMap).bindPopup('📍 Your Location');
+    }).addTo(donationMap).bindPopup('Your Location');
   }
 
   // Add donation markers
@@ -729,7 +729,7 @@ document.addEventListener('submit', async (e) => {
 
     const data = await response.json();
 
-    alert(`✅ Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
+    alert(`Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
     closeModal();
 
     // Reload donations to update button status (non-blocking)
@@ -784,8 +784,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       btn.disabled = true;
-      btn.textContent = '📍 Getting location...';
-      statusEl.textContent = '📍 Acquiring precise location...';
+      btn.textContent = 'Getting location...';
+      statusEl.textContent = 'Acquiring precise location...';
 
       // Use high accuracy options for better precision
       const options = {
@@ -829,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const accuracyText = accuracy < 10 ? 'Very High' :
               accuracy < 50 ? 'High' :
                 accuracy < 100 ? 'Medium' : 'Low';
-            statusEl.textContent = `✓ Location obtained (Accuracy: ${Math.round(accuracy)}m - ${accuracyText}). You can drag the marker to adjust.`;
+            statusEl.textContent = `Location obtained (Accuracy: ${Math.round(accuracy)}m - ${accuracyText}). You can drag the marker to adjust.`;
             console.log(`📍 Location accuracy: ${accuracy.toFixed(2)}m (${accuracyText})`);
 
             // Remove old marker if exists
@@ -864,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Show map
             mapDiv.style.display = 'block';
-            statusEl.textContent = '✓ Location obtained. You can drag the marker to adjust.';
+            statusEl.textContent = 'Location obtained. You can drag the marker to adjust.';
 
           } catch (err) {
             console.error('Location error:', err);
@@ -872,7 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error processing location: ' + err.message);
           } finally {
             btn.disabled = false;
-            btn.textContent = '📍 Use Current Location';
+            btn.textContent = 'Use Current Location';
           }
         },
         (error) => {
@@ -896,7 +896,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           alert(errorMsg);
           btn.disabled = false;
-          btn.textContent = '📍 Use Current Location';
+          btn.textContent = 'Use Current Location';
         },
         options
       );

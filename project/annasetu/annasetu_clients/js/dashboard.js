@@ -211,22 +211,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cards = document.querySelectorAll('.stats .card');
     // Determine counts:
     // - donationsMade: number of donations created by current user (donations.length)
-    // - requestsByOthers: donations belonging to user that have status 'Requested' (server-side not yet fully modeled) OR count of availableDonations where status === 'Requested'
-    // - requestsMadeByUser: we don't have a dedicated endpoint; fallback to localStorage 'requests' array or 0
+    // - requestsByOthers: count of claims on user's donations (someone requested your food)
+    // - requestsMadeByUser: count of claims made by user on other's donations
     // - nearby: number of availableDonations
 
     const donationsMade = Array.isArray(donations) ? donations.length : 0;
-    const requestsByOthers = Array.isArray(donations) ? donations.filter(d => (d.status || '').toLowerCase() === 'requested').length : 0;
-    // fallback: check availableDonations for requested flags
-    const altRequestsByOthers = Array.isArray(availableDonations) ? availableDonations.filter(d => (d.status || '').toLowerCase() === 'requested').length : 0;
-    const finalRequestsByOthers = requestsByOthers || altRequestsByOthers;
 
+    // Count claims on user's donations (Requests In - someone claimed your food)
+    const requestsByOthers = Array.isArray(donations)
+      ? donations.reduce((sum, d) => sum + (Array.isArray(d.claims) ? d.claims.length : 0), 0)
+      : 0;
+
+    // Count claims made by current user on other's donations (Requests Out)
+    const userId = user?.id || user?._id || user?.email;
     let requestsMadeByUser = 0;
-    try {
-      const storedRequests = JSON.parse(localStorage.getItem('requests') || '[]');
-      requestsMadeByUser = Array.isArray(storedRequests) ? storedRequests.filter(r => (r.requesterId || r.userId || r.from) === (user.id || user._id || user.email)).length : 0;
-    } catch (err) {
-      requestsMadeByUser = 0;
+    if (userId && Array.isArray(availableDonations)) {
+      requestsMadeByUser = availableDonations.reduce((sum, d) => {
+        const userClaims = Array.isArray(d.claims) 
+          ? d.claims.filter(c => {
+              const claimUserId = typeof c.userId === 'object' ? c.userId?.toString() : String(c.userId);
+              return claimUserId === String(userId);
+            }).length 
+          : 0;
+        return sum + userClaims;
+      }, 0);
     }
 
     const nearby = Array.isArray(availableDonations) ? availableDonations.length : 0;
@@ -234,8 +242,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (cards && cards.length >= 4) {
       // Map cards in order: Donations, Requests In, Requests Out, Nearby
       cards[0].querySelector('h3').textContent = String(donationsMade);
-      cards[1].querySelector('h3').textContent = String(finalRequestsByOthers || '0');  // Requests In (from others)
-      cards[2].querySelector('h3').textContent = String(requestsMadeByUser || '0');     // Requests Out (made by user)
+      cards[1].querySelector('h3').textContent = String(requestsByOthers || '0');      // Requests In (from others on your donations)
+      cards[2].querySelector('h3').textContent = String(requestsMadeByUser || '0');    // Requests Out (made by user on others' donations)
       cards[3].querySelector('h3').textContent = String(nearby);
     }
   } catch (err) {

@@ -368,7 +368,7 @@ function getClaimButton(donation) {
     if (donation.status === 'Available') {
       return `
         <button class="claim-btn" onclick="handleClaimDonation('${donation._id}', '${donation.food.replace(/'/g, "\\'")}')">
-          <i class="fa fa-star"></i> Claim Food
+          Claim Food
         </button>
       `;
     }

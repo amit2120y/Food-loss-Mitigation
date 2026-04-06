@@ -232,11 +232,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nearby = Array.isArray(availableDonations) ? availableDonations.length : 0;
 
     if (cards && cards.length >= 4) {
-      // Map cards in order: Donations, Requests, Distributed, Nearby
+      // Map cards in order: Donations, Requests In, Requests Out, Nearby
       cards[0].querySelector('h3').textContent = String(donationsMade);
-      cards[1].querySelector('h3').textContent = String(finalRequestsByOthers || requestsMadeByUser || '0');
-      // Preserve 'Distributed' for now but set to 0 if unknown
-      cards[2].querySelector('h3').textContent = cards[2].querySelector('h3').textContent || '0';
+      cards[1].querySelector('h3').textContent = String(finalRequestsByOthers || '0');  // Requests In (from others)
+      cards[2].querySelector('h3').textContent = String(requestsMadeByUser || '0');     // Requests Out (made by user)
       cards[3].querySelector('h3').textContent = String(nearby);
     }
   } catch (err) {

@@ -122,20 +122,9 @@
             <th>Distance</th>
             <th>Action</th>
           </tr>
-
-          <tr>
-            <td>Biryani</td>
-            <td>8 plates</td>
-            <td>2 km</td>
-            <td><button class="btn-request">Request</button></td>
-          </tr>
-
-          <tr>
-            <td>Bread</td>
-            <td>15 pcs</td>
-            <td>1 km</td>
-            <td><button class="btn-request">Request</button></td>
-          </tr>
+          <tbody id="receiverTableBody">
+            <!-- Dynamically populated from availableDonations -->
+          </tbody>
         </table>
       </div>
     </div>
@@ -203,6 +192,102 @@
   </script>
   <script src="js/common-utils.js"></script>
   <script src="js/dashboard.js"></script>
+
+  <!-- CLAIM MODAL -->
+  <div id="claimModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h2>Submit Claim Request</h2>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div id="claimDetails" style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+        </div>
+
+        <form id="claimForm">
+          <!-- Purpose -->
+          <div class="form-group">
+            <label for="claimPurpose">
+              <i class="fa fa-target"></i> Purpose of Claim <span style="color: red;">*</span>
+            </label>
+            <select id="claimPurpose" name="purpose" required
+              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;">
+              <option value="">Select purpose...</option>
+              <option value="Human consumption">Human consumption</option>
+              <option value="Cattle feeding">Cattle feeding</option>
+              <option value="Organic compost">Organic compost</option>
+            </select>
+          </div>
+
+          <!-- Number of Beneficiaries -->
+          <div class="form-group">
+            <label for="claimBeneficiaries">
+              <i class="fa fa-users"></i> Number of People Benefiting <span style="color: red;">*</span>
+            </label>
+            <input type="number" id="claimBeneficiaries" name="beneficiaries" min="1" max="1000" placeholder="e.g., 5"
+              required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+          </div>
+
+          <!-- Delivery Address -->
+          <div class="form-group">
+            <label for="claimAddress">
+              <i class="fa fa-map-marker"></i> Delivery/Pickup Address <span style="color: red;">*</span>
+            </label>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+              <textarea id="claimAddress" name="address" rows="2"
+                placeholder="Enter full address where you'll receive/pickup the food" required
+                style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;"></textarea>
+              <button type="button" id="claimCurrentLocationBtn" class="btn"
+                style="padding: 10px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; white-space: nowrap; align-self: flex-end; font-size: 12px; height: fit-content;">
+                Get Current Location
+              </button>
+            </div>
+            <small id="claimLocationStatus" style="color: #666;"></small>
+            <!-- Map for claim location -->
+            <div id="claimLocationMap"
+              style="height: 250px; margin-top: 10px; border-radius: 8px; display: none; z-index: 1;">
+            </div>
+          </div>
+
+          <!-- Preferred Pickup Time -->
+          <div class="form-group">
+            <label for="claimPickupTime">
+              <i class="fa fa-clock"></i> Preferred Pickup/Delivery Time
+            </label>
+            <input type="datetime-local" id="claimPickupTime" name="preferredPickupTime"
+              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+          </div>
+
+          <!-- Additional Notes -->
+          <div class="form-group">
+            <label for="claimNotes">
+              <i class="fa fa-sticky-note"></i> Special Requirements/Notes
+            </label>
+            <textarea id="claimNotes" name="notes" rows="3"
+              placeholder="Any special dietary needs, allergies, or other requirements? (Optional)"
+              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Poppins;"></textarea>
+          </div>
+
+          <!-- Terms -->
+          <div
+            style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; border-radius: 4px; margin-bottom: 15px; font-size: 12px; color: #856404;">
+            <i class="fa fa-info-circle"></i> <strong>By submitting this request:</strong> You confirm that
+            you truly need this food and will arrange pickup/delivery as per donor's availability.
+          </div>
+
+          <button type="submit" class="btn-submit"
+            style="width: 100%; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 5px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.3s;">
+            <i class="fa fa-check"></i> Submit Claim Request
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet.js Library for Claim Location Map -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="js/browse.js"></script>
 
 </body>
 

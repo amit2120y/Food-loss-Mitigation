@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${d.food || d.foodName || '-'}</td>
         <td>${d.quantity || d.qty || '-'}</td>
         <td>${distance}</td>
-        <td><button class="btn-request" onclick="alert('Request feature coming soon')">Request</button></td>
+        <td><button class="btn-request" onclick="handleClaimDonation('${d._id}', '${(d.food || d.foodName || '').replace(/'/g, "\\'")}')">Request</button></td>
       `;
       receiverTable.appendChild(tr);
     });
@@ -227,11 +227,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let requestsMadeByUser = 0;
     if (userId && Array.isArray(availableDonations)) {
       requestsMadeByUser = availableDonations.reduce((sum, d) => {
-        const userClaims = Array.isArray(d.claims) 
+        const userClaims = Array.isArray(d.claims)
           ? d.claims.filter(c => {
-              const claimUserId = typeof c.userId === 'object' ? c.userId?.toString() : String(c.userId);
-              return claimUserId === String(userId);
-            }).length 
+            const claimUserId = typeof c.userId === 'object' ? c.userId?.toString() : String(c.userId);
+            return claimUserId === String(userId);
+          }).length
           : 0;
         return sum + userClaims;
       }, 0);

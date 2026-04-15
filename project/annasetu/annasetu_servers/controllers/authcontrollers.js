@@ -728,7 +728,7 @@ async function performAIAnalysis(imageDataUrl) {
 // GOOGLE GEMINI API INTEGRATION
 // ==========================================
 
-async function analyzeWithGemini(imageDataUrl) {
+async function analyzeWithGemini(imageDataUrl, retryCount = 0, maxRetries = 2) {
     try {
         console.log("Calling Google Gemini API for image analysis...");
 
@@ -792,7 +792,21 @@ CRITICAL RULES:
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+            const errorMessage = `API Error: ${response.status} - ${JSON.stringify(errorData)}`;
+
+            // Retry logic for temporary server errors (503, 429)
+            if ((response.status === 503 || response.status === 429) && retryCount < maxRetries) {
+                const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+                console.log(`⚠️ Gemini API temporarily unavailable (${response.status}). Retrying in ${retryDelay}ms... (Attempt ${retryCount + 1}/${maxRetries})`);
+
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+                // Recursive retry
+                return analyzeWithGemini(imageDataUrl, retryCount + 1, maxRetries);
+            }
+
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();

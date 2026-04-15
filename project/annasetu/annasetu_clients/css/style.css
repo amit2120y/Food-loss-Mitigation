@@ -377,6 +377,19 @@ footer {
   width: 22px;
   text-align: center;
   font-size: 18px;
+  color: white;
+  display: inline-block;
+}
+
+.sidebar nav a .material-symbols-outlined {
+  width: 22px;
+  text-align: center;
+  font-size: 22px;
+  color: white;
+  display: inline-block;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400;
 }
 
 .main-content {

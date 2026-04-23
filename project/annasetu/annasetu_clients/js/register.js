@@ -18,10 +18,10 @@ function checkForGoogleToken() {
       name: decodeURIComponent(userName),
       email: decodeURIComponent(userEmail)
     }));
-    
+
     // Clear the URL parameters
     window.history.replaceState({}, document.title, window.location.pathname);
-    
+
     // Redirect to dashboard
     console.log('Redirecting to dashboard...');
     window.location.href = 'dashboard.html';
@@ -34,18 +34,18 @@ function checkForGoogleToken() {
 // Register Form Handler
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Register page loaded');
-  
+
   // Check for Google token on page load FIRST
   if (checkForGoogleToken()) {
     return; // Exit if token was found and we're redirecting
   }
-  
+
   const registerForm = document.querySelector('form');
   console.log('Form found:', !!registerForm);
-  
+
   if (registerForm) {
     console.log('Attaching submit event listener');
-    
+
     registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       console.log('Form submitted');
@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         console.log('Sending fetch request to: http://localhost:5000/api/auth/register');
-        
+
         // Send registration request
         const response = await fetch('http://localhost:5000/api/auth/register', {
           method: 'POST',
@@ -98,8 +98,53 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Response data:', data);
 
         if (response.ok) {
-          alert('Registration successful! Please login with your credentials.');
-          window.location.href = 'login.html';
+          // Show modal dialog telling the user to check their email and allowing resend
+          const modal = document.getElementById('verificationModal');
+          const verificationEmail = document.getElementById('verificationEmail');
+          const resendBtn = document.getElementById('resendBtn');
+          const closeBtn = document.getElementById('closeModalBtn');
+          const resendStatus = document.getElementById('resendStatus');
+
+          verificationEmail.textContent = email;
+          resendStatus.textContent = '';
+          modal.style.display = 'flex';
+
+          let sending = false;
+          resendBtn.onclick = async () => {
+            if (sending) return;
+            sending = true;
+            resendBtn.disabled = true;
+            resendBtn.textContent = 'Resending...';
+            resendStatus.textContent = '';
+            try {
+              const r = await fetch('http://localhost:5000/api/auth/resend-verification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+              });
+              const resp = await r.json();
+              if (r.ok) {
+                resendStatus.style.color = 'green';
+                resendStatus.textContent = resp.message || 'Verification email resent';
+              } else {
+                resendStatus.style.color = 'red';
+                resendStatus.textContent = resp.message || 'Failed to resend verification email';
+              }
+            } catch (err) {
+              console.error('Resend fetch error:', err);
+              resendStatus.style.color = 'red';
+              resendStatus.textContent = err.message || 'Network error';
+            } finally {
+              sending = false;
+              resendBtn.disabled = false;
+              resendBtn.textContent = 'Resend link';
+            }
+          };
+
+          closeBtn.onclick = () => {
+            modal.style.display = 'none';
+          };
+
         } else {
           alert(data.message || 'Registration failed, please try again');
         }

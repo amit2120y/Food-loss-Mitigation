@@ -84,10 +84,49 @@ exports.createDonation = async (req, res) => {
       status: "Available"
     });
 
+
     // Update user's donation count
     await User.findByIdAndUpdate(user._id, {
       $inc: { donationsMade: 1 }
     });
+
+    // --- Real-time notification logic ---
+
+    // Only notify other users, not the one who added the food
+    const Notification = require('../models/notification');
+    const io = req.app.get('io');
+    const notifMsg = `${user.name || user.email} added new food: ${food}`;
+    const notification = await Notification.create({
+      message: notifMsg,
+      foodId: donation._id,
+      addedBy: user._id
+    });
+    if (io) {
+      io.sockets.sockets.forEach((socket) => {
+        let socketUserId = null;
+        if (socket.handshake.auth && socket.handshake.auth.token) {
+          try {
+            const decoded = jwt.verify(socket.handshake.auth.token, process.env.JWT_SECRET);
+            socketUserId = String(decoded.id);
+          } catch (e) {
+            console.log('Socket token invalid:', e.message);
+          }
+        }
+        // Debug log for each socket
+        console.log('Socket', socket.id, 'userId:', socketUserId, '| Donor:', String(user._id));
+        if (socketUserId && socketUserId === String(user._id)) {
+          // Don't send to the user who added
+          return;
+        }
+        socket.emit('new_notification', {
+          message: notifMsg,
+          foodId: donation._id,
+          addedBy: user._id,
+          createdAt: notification.createdAt,
+          notificationId: notification._id
+        });
+      });
+    }
 
     console.log(`✓ Donation created by user: ${user.email}`);
 
@@ -453,6 +492,43 @@ exports.claimDonation = async (req, res) => {
     });
 
     console.log('[CLAIM] Full donation object keys:', Object.keys(donation.toObject ? donation.toObject() : donation));
+
+
+    // --- Notify the donor ---
+    try {
+      const Notification = require('../models/notification');
+      const io = req.app.get('io');
+      const donorId = donation.userId._id ? donation.userId._id.toString() : donation.userId.toString();
+      const notifMsg = `${user.name || user.email} claimed your food: ${donation.food}`;
+      const notification = await Notification.create({
+        message: notifMsg,
+        foodId: donation._id,
+        addedBy: user._id,
+        recipient: donorId
+      });
+      if (io) {
+        io.sockets.sockets.forEach((socket) => {
+          let socketUserId = null;
+          if (socket.handshake.auth && socket.handshake.auth.token) {
+            try {
+              const decoded = require('jsonwebtoken').verify(socket.handshake.auth.token, process.env.JWT_SECRET);
+              socketUserId = String(decoded.id);
+            } catch (e) { }
+          }
+          if (socketUserId && socketUserId === donorId) {
+            socket.emit('new_notification', {
+              message: notifMsg,
+              foodId: donation._id,
+              addedBy: user._id,
+              createdAt: notification.createdAt,
+              notificationId: notification._id
+            });
+          }
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Error sending donor notification:', notifyErr);
+    }
 
     res.status(200).json({
       message: "Donation claimed successfully",

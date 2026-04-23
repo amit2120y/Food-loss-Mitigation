@@ -2,59 +2,67 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
 
-name: {
-type: String,
-required: true
-},
+    name: {
+        type: String,
+        required: true
+    },
 
-email: {
-type: String,
-required: true,
-unique: true
-},
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
 
-phone: String,
+    phone: String,
 
-location: String,
+    location: String,
 
-password: {
-type: String,
-required: false
-},
+    password: {
+        type: String,
+        required: false
+    },
 
-// Google OAuth fields
-googleId: {
-type: String,
-unique: true,
-sparse: true
-},
+    // Email verification
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
 
-googleEmail: String,
-googleName: String,
-googleProfilePicture: String,
+    verificationToken: String,
+    verificationTokenExpires: Date,
+    // Google OAuth fields
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
 
-// Authentication method
-authMethod: {
-type: String,
-enum: ['email', 'google'],
-default: 'email'
-},
+    googleEmail: String,
+    googleName: String,
+    googleProfilePicture: String,
 
-// Donation tracking
-donationsMade: {
-type: Number,
-default: 0
-},
+    // Authentication method
+    authMethod: {
+        type: String,
+        enum: ['email', 'google'],
+        default: 'email'
+    },
 
-donationsReceived: {
-type: Number,
-default: 0
-},
+    // Donation tracking
+    donationsMade: {
+        type: Number,
+        default: 0
+    },
 
-createdAt: {
-type: Date,
-default: Date.now
-}
+    donationsReceived: {
+        type: Number,
+        default: 0
+    },
+
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 
 });
 

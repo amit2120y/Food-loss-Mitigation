@@ -58,6 +58,7 @@ app.use(express.static(path.join(__dirname, "../annasetu_clients")));
 // Routes
 app.use("/api/auth", require("./routes/authroutes"));
 app.use("/api/donations", require("./routes/donationroutes"));
+app.use("/api/notifications", require("./routes/notificationroutes"));
 
 // Global error handling middleware (MUST be after all routes)
 app.use((err, req, res, next) => {
@@ -75,10 +76,33 @@ app.get(/.*/, (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
+const http = require('http');
+const { Server } = require('socket.io');
+let io;
+
 const startServer = async () => {
   try {
     await connectDB();
-    const server = app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    io = new Server(httpServer, {
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+      }
+    });
+
+    // Socket.io connection
+    io.on('connection', (socket) => {
+      console.log('A user connected:', socket.id);
+      socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+      });
+    });
+
+    // Make io accessible in routes/controllers
+    app.set('io', io);
+
+    httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
 

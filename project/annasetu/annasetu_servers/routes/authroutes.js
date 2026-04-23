@@ -8,6 +8,8 @@ const {
   googleCallback,
   getGoogleLoginSuccess,
   getUserStats,
+  resendVerification,
+  verifyEmail,
   analyzeFoodWithAI,
   updateProfile,
   changePassword
@@ -15,6 +17,12 @@ const {
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
+
+// Email verification link
+router.get('/verify-email', verifyEmail);
+
+// Resend verification email
+router.post('/resend-verification', resendVerification);
 
 // Direct Google OAuth redirect (simpler approach)
 router.get("/google", (req, res) => {

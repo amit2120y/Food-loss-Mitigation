@@ -58,7 +58,7 @@ const donationSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ["Available", "Claimed", "Completed", "Expired"],
+    enum: ["Available", "Cattle Feed", "Organic Compost", "Claimed", "Completed", "Expired"],
     default: "Available"
   },
 

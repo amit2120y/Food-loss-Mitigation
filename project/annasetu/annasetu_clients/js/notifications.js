@@ -4,7 +4,41 @@ let initStartTime = 0;
 let notifications = [];
 
 // Initialize on page load with better error handling
+
+// Track unseen notifications
+let unseenNotificationCount = 0;
+
+// Request browser notification permission
+function requestNotificationPermission() {
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+}
+
+// Show browser notification
+function showBrowserNotification(title, message) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body: message, icon: '/favicon.ico' });
+  }
+}
+
+// Update bell badge
+function updateNotificationBadge() {
+  const badge = document.getElementById('notificationBadge');
+  if (!badge) return;
+  if (unseenNotificationCount > 0) {
+    badge.textContent = unseenNotificationCount;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // Ask for browser notification permission
+  requestNotificationPermission();
   if (isPageInitialized) {
     console.warn('⚠️ Page already initialized, skipping...');
     return;
@@ -32,11 +66,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     console.log(`✓ User authenticated: ${user.name}`);
 
-    // Load notifications
+    // Load notifications from backend
     await loadNotifications();
+    unseenNotificationCount = 0;
+    updateNotificationBadge();
 
     // Setup event listeners
     setupEventListeners();
+    // Reset badge when viewing notifications page
+    const bellLink = document.getElementById('notificationBellLink');
+    if (bellLink) {
+      bellLink.addEventListener('click', () => {
+        unseenNotificationCount = 0;
+        updateNotificationBadge();
+      });
+    }
+
+    // Setup Socket.io for real-time notifications
+    setupSocketNotifications();
 
     // Mark page as initialized
     isPageInitialized = true;
@@ -75,19 +122,23 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Load notifications
+// Load notifications from backend
 async function loadNotifications() {
   try {
-    // For now, use empty state
-    // In future, you can fetch from backend:
-    // const token = localStorage.getItem('token');
-    // const response = await fetch('http://localhost:5000/api/notifications', {
-    //   headers: { 'Authorization': `Bearer ${token}` }
-    // });
-    // const data = await response.json();
-    // notifications = data.notifications || [];
-    
-    notifications = [];
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:5000/api/notifications', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await response.json();
+    notifications = (data.notifications || []).map(n => ({
+      message: n.message,
+      title: n.title || 'Notification',
+      icon: 'fa-bell',
+      timestamp: n.createdAt,
+      notificationId: n._id,
+      foodId: n.foodId,
+      addedBy: n.addedBy
+    }));
     displayNotifications();
     console.log('✓ Notifications loaded successfully');
   } catch (error) {
@@ -95,12 +146,42 @@ async function loadNotifications() {
     displayNotifications();
   }
 }
+// Setup Socket.io for real-time notifications
+function setupSocketNotifications() {
+  // Connect to backend Socket.io server with auth token
+  const token = localStorage.getItem('token');
+  const socket = io('http://localhost:5000', {
+    auth: { token }
+  });
+  socket.on('connect', () => {
+    console.log('🔔 Connected to notification server');
+  });
+  socket.on('new_notification', notif => {
+    console.log('🔔 New notification received:', notif);
+    // Add to notifications array and update UI
+    notifications.unshift({
+      message: notif.message,
+      title: 'Notification',
+      icon: 'fa-bell',
+      timestamp: notif.createdAt,
+      notificationId: notif.notificationId,
+      foodId: notif.foodId,
+      addedBy: notif.addedBy
+    });
+    displayNotifications();
+    // Show browser notification
+    showBrowserNotification('New Notification', notif.message);
+    // Increment badge
+    unseenNotificationCount++;
+    updateNotificationBadge();
+  });
+}
 
 // Display notifications on page
 function displayNotifications() {
   try {
     const container = document.getElementById('notificationsContainer');
-    
+
     if (!container) {
       console.warn('Notifications container not found');
       return;
@@ -149,7 +230,7 @@ function closeNotification(element) {
 // Format time
 function formatTime(timestamp) {
   if (!timestamp) return 'Just now';
-  
+
   const date = new Date(timestamp);
   const now = new Date();
   const diffInSeconds = Math.floor((now - date) / 1000);

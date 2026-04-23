@@ -44,6 +44,14 @@ function handleCredentialResponse(response) {
 document.addEventListener("DOMContentLoaded", () => {
   console.log("Login page loaded");
 
+  // Show verification success message if redirected from email verification
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('verified') === '1') {
+    alert('Email verified successfully! You can now log in.');
+    // Remove query param from URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   // Check for Google token on page load FIRST
   if (checkForGoogleToken()) {
     return; // Exit if token was found and we're redirecting

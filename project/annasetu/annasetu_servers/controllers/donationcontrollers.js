@@ -14,6 +14,28 @@ function handleDatabaseError(error) {
   return null;
 }
 
+// Parse numeric quantity from various formats (e.g. "5", "5 kg", "2.5 plates")
+function parseNumericQty(q) {
+  if (q === null || q === undefined) return 1;
+  if (typeof q === 'number') return Math.max(1, Math.floor(q));
+  const s = String(q).trim();
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  if (!m) return 1;
+  const num = parseFloat(m[1]);
+  if (Number.isNaN(num) || num <= 0) return 1;
+  return Math.max(1, Math.floor(num));
+}
+
+// Create a new quantity string by replacing the numeric portion with remaining value
+function buildQuantityString(originalQuantity, remaining) {
+  const s = String(originalQuantity || '');
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  if (m) {
+    return s.replace(m[1], String(remaining));
+  }
+  return String(remaining);
+}
+
 // CREATE NEW DONATION
 exports.createDonation = async (req, res) => {
   try {
@@ -469,16 +491,6 @@ exports.claimDonation = async (req, res) => {
     };
 
     // Defensive: parse donation.quantity to numeric available units and adjust if requested beneficiaries exceed available
-    const parseNumericQty = (q) => {
-      if (q === null || q === undefined) return 1;
-      if (typeof q === 'number') return Math.max(1, Math.floor(q));
-      const s = String(q).trim();
-      const m = s.match(/(\d+(?:\.\d+)?)/);
-      if (!m) return 1;
-      const num = parseFloat(m[1]);
-      if (Number.isNaN(num) || num <= 0) return 1;
-      return Math.max(1, Math.floor(num));
-    };
 
     let wasAdjusted = false;
     let originalRequested = claimObject.beneficiaries;
@@ -672,17 +684,43 @@ exports.acceptClaim = async (req, res) => {
       return res.status(404).json({ message: "Claim not found" });
     }
 
-    // Reject all other claims
-    donation.claims.forEach(c => {
-      if (c._id.toString() !== claim._id.toString()) {
-        c.status = "rejected";
-      }
-    });
 
-    // Accept this claim
+    // Accept this claim and treat it as a partial reservation.
+    // Reduce the donation quantity by the accepted beneficiaries amount.
     claim.status = "accepted";
-    donation.claimedBy = claimUserId;
-    donation.status = "Claimed";
+
+    try {
+      const requested = parseInt(claim.beneficiaries) || 1;
+      const available = parseNumericQty(donation.quantity);
+      const remaining = Math.max(0, available - Math.max(1, Math.floor(requested)));
+
+      // Update the quantity string preserving units when possible
+      donation.quantity = buildQuantityString(donation.quantity, remaining);
+
+      if (remaining <= 0) {
+        // Fully claimed: mark as claimed and reject other pending claims
+        donation.claimedBy = claimUserId;
+        donation.status = "Claimed";
+        donation.claims.forEach(c => {
+          if (c._id.toString() !== claim._id.toString()) {
+            c.status = "rejected";
+          }
+        });
+      } else {
+        // Partially claimed: keep available for further claims
+        donation.status = "Available";
+      }
+    } catch (qtyErr) {
+      console.warn('Failed to update donation quantity on accept:', qtyErr);
+      // Fallback to previous behavior to avoid blocking acceptance
+      donation.claimedBy = claimUserId;
+      donation.status = "Claimed";
+      donation.claims.forEach(c => {
+        if (c._id.toString() !== claim._id.toString()) {
+          c.status = "rejected";
+        }
+      });
+    }
 
     // Mark the claims array as modified so Mongoose will save it
     donation.markModified('claims');

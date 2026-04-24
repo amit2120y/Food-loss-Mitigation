@@ -6,6 +6,7 @@
 // Initialize logout handlers on all pages
 document.addEventListener('DOMContentLoaded', function () {
     initializeLogoutHandlers();
+    initGlobalNotifications();
 });
 
 /**
@@ -81,3 +82,90 @@ function getFormattedDistance(distanceInKm) {
 
     return `${distanceInKm.toFixed(1)} km`;
 }
+
+/* -------------------- Global Notifications -------------------- */
+// Initialize global notification system: request permission and connect socket
+function initGlobalNotifications() {
+    try {
+        // Request browser notification permission (non-blocking)
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().then(p => console.log('Notification permission:', p));
+        }
+    } catch (e) {
+        console.warn('Notification API not available', e);
+    }
+
+    // Load Socket.io client script dynamically if needed and then setup socket
+    if (typeof io === 'undefined') {
+        const existing = document.querySelector('script[data-socketio-loader]');
+        if (!existing) {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+            s.setAttribute('data-socketio-loader', '1');
+            s.onload = () => setupGlobalSocket();
+            s.onerror = (err) => console.error('Failed to load socket.io client', err);
+            document.head.appendChild(s);
+        }
+    } else {
+        setupGlobalSocket();
+    }
+}
+
+function setupGlobalSocket() {
+    // Avoid creating multiple sockets
+    if (window.__annasetuSocket) return;
+
+    try {
+        const token = localStorage.getItem('token');
+        // Use explicit origin (adjust if your server runs on different host/port)
+        const socket = io('http://localhost:5000', { auth: { token } });
+        window.__annasetuSocket = socket;
+
+        socket.on('connect', () => {
+            console.log('Global socket connected:', socket.id);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Global socket disconnected:', reason);
+        });
+
+        socket.on('new_notification', (notif) => {
+            try {
+                console.log('Global new_notification received:', notif);
+                // Store pending notifications locally (simple queue)
+                const pending = JSON.parse(localStorage.getItem('pendingNotifications') || '[]');
+                pending.unshift(notif);
+                localStorage.setItem('pendingNotifications', JSON.stringify(pending));
+
+                // Increment unseen counter
+                const unseen = parseInt(localStorage.getItem('unseenNotifications') || '0', 10) || 0;
+                localStorage.setItem('unseenNotifications', unseen + 1);
+
+                // Dispatch custom event so pages can update UI
+                window.dispatchEvent(new CustomEvent('annasetu:new_notification', { detail: notif }));
+
+                // Show native browser notification if permission granted
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    try {
+                        new Notification('New Notification', { body: notif.message, icon: '/favicon.ico' });
+                    } catch (e) {
+                        console.warn('Failed to show browser notification', e);
+                    }
+                }
+
+                // Update an on-page badge if present
+                const badge = document.getElementById('notificationBadge');
+                if (badge) {
+                    const count = parseInt(localStorage.getItem('unseenNotifications') || '0', 10) || 0;
+                    badge.textContent = count;
+                    badge.style.display = count > 0 ? 'inline-block' : 'none';
+                }
+            } catch (err) {
+                console.error('Error handling incoming notification', err);
+            }
+        });
+    } catch (err) {
+        console.error('Failed to setup global socket', err);
+    }
+}
+

@@ -468,6 +468,31 @@ exports.claimDonation = async (req, res) => {
       preferredPickupTime: preferredPickupTime || ""
     };
 
+    // Defensive: parse donation.quantity to numeric available units and adjust if requested beneficiaries exceed available
+    const parseNumericQty = (q) => {
+      if (q === null || q === undefined) return 1;
+      if (typeof q === 'number') return Math.max(1, Math.floor(q));
+      const s = String(q).trim();
+      const m = s.match(/(\d+(?:\.\d+)?)/);
+      if (!m) return 1;
+      const num = parseFloat(m[1]);
+      if (Number.isNaN(num) || num <= 0) return 1;
+      return Math.max(1, Math.floor(num));
+    };
+
+    let wasAdjusted = false;
+    let originalRequested = claimObject.beneficiaries;
+    try {
+      const available = parseNumericQty(donation.quantity);
+      if (claimObject.beneficiaries > available) {
+        claimObject.beneficiaries = available;
+        wasAdjusted = true;
+        console.log(`[CLAIM] Requested beneficiaries (${originalRequested}) exceeded available (${available}). Auto-reduced to ${available}.`);
+      }
+    } catch (adjErr) {
+      console.warn('Could not enforce beneficiaries limit:', adjErr);
+    }
+
     console.log('[CLAIM] Saving claim object to database:', claimObject);
     donation.claims.push(claimObject);
 
@@ -530,11 +555,16 @@ exports.claimDonation = async (req, res) => {
       console.error('Error sending donor notification:', notifyErr);
     }
 
-    res.status(200).json({
+    const responseBody = {
       message: "Donation claimed successfully",
       donation: donation,
       claim: donation.claims[donation.claims.length - 1]
-    });
+    };
+    if (wasAdjusted) {
+      responseBody.warning = `Requested quantity (${originalRequested}) exceeded available and was reduced to ${claimObject.beneficiaries}.`;
+    }
+
+    res.status(200).json(responseBody);
 
   } catch (error) {
     console.error("Error claiming donation:", error);

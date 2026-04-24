@@ -68,7 +68,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load notifications from backend
     await loadNotifications();
-    unseenNotificationCount = 0;
+    // Initialize unseen count from localStorage
+    unseenNotificationCount = parseInt(localStorage.getItem('unseenNotifications') || '0', 10) || 0;
     updateNotificationBadge();
 
     // Setup event listeners
@@ -82,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    // Setup Socket.io for real-time notifications
+    // Setup listeners for real-time notifications (global socket)
     setupSocketNotifications();
 
     // Mark page as initialized
@@ -146,18 +147,12 @@ async function loadNotifications() {
     displayNotifications();
   }
 }
-// Setup Socket.io for real-time notifications
+// Setup listeners for real-time notifications using the global socket
 function setupSocketNotifications() {
-  // Connect to backend Socket.io server with auth token
-  const token = localStorage.getItem('token');
-  const socket = io('http://localhost:5000', {
-    auth: { token }
-  });
-  socket.on('connect', () => {
-    console.log('🔔 Connected to notification server');
-  });
-  socket.on('new_notification', notif => {
-    console.log('🔔 New notification received:', notif);
+  // Use custom event dispatched by `common-utils` when a notification arrives
+  window.addEventListener('annasetu:new_notification', (e) => {
+    const notif = e.detail;
+    console.log('🔔 New notification received (page):', notif);
     // Add to notifications array and update UI
     notifications.unshift({
       message: notif.message,
@@ -169,12 +164,18 @@ function setupSocketNotifications() {
       addedBy: notif.addedBy
     });
     displayNotifications();
-    // Show browser notification
-    showBrowserNotification('New Notification', notif.message);
-    // Increment badge
-    unseenNotificationCount++;
+
+    // Sync unseen count from localStorage (global handler updated it)
+    unseenNotificationCount = parseInt(localStorage.getItem('unseenNotifications') || '0', 10) || 0;
     updateNotificationBadge();
   });
+
+  // If global socket not present yet, common-utils will create it when loaded.
+  if (window.__annasetuSocket) {
+    console.log('🔔 Using global notification socket');
+  } else {
+    console.log('🔔 Waiting for global socket to initialize');
+  }
 }
 
 // Display notifications on page

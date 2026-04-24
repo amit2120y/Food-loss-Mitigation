@@ -151,6 +151,18 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c; // Distance in km
 }
 
+// Parse numeric available quantity from various formats (e.g. "5", "5 kg", "2.5 plates")
+function parseAvailableQuantity(quantity) {
+  if (quantity === null || quantity === undefined) return 1;
+  if (typeof quantity === 'number') return Math.max(1, Math.floor(quantity));
+  const s = String(quantity).trim();
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  if (!m) return 1;
+  const num = parseFloat(m[1]);
+  if (Number.isNaN(num) || num <= 0) return 1;
+  return Math.max(1, Math.floor(num));
+}
+
 // Get distance text for donation card
 function getDistanceText(donation) {
   if (!userCoordinates) {
@@ -528,15 +540,60 @@ async function handleClaimDonation(donationId, foodName) {
   // Populate donation details in modal - with sanitization
   const sanitizedFood = String(foodName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // Find donation object to determine available quantity
+  let availableQty = 1;
+  try {
+    const donation = allDonations.find(d => String(d._id) === String(donationId) || d._id === donationId);
+    if (donation && donation.quantity !== undefined) {
+      availableQty = parseAvailableQuantity(donation.quantity);
+    }
+  } catch (err) {
+    console.warn('Could not determine available quantity for donation:', donationId, err);
+  }
+
   if (modalCache.details) {
     modalCache.details.innerHTML = `
-      <div style="font-weight: 600; font-size: 14px; margin-bottom: 15px;">
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">
         🍽️ <strong>${sanitizedFood}</strong>
       </div>
-      <p style="font-size: 13px; color: #666; margin-bottom: 20px;">
+      <div style="font-size: 13px; color: #666; margin-bottom: 12px;">
         Are you sure you want to claim this food? The donor will receive a notification about your request.
-      </p>
+      </div>
+      <div style="font-size: 13px; color: #444; margin-bottom: 6px;">
+        <strong>Available quantity:</strong> ${availableQty}
+      </div>
     `;
+  }
+
+  // Set up beneficiaries input with max enforced and inline warning
+  const beneficiariesInput = document.getElementById('claimBeneficiaries');
+  if (beneficiariesInput) {
+    beneficiariesInput.min = 1;
+    beneficiariesInput.max = availableQty;
+    if (!beneficiariesInput.value) beneficiariesInput.value = 1;
+
+    // Create or reuse inline warning element
+    let warnEl = document.getElementById('claimQuantityWarning');
+    if (!warnEl) {
+      warnEl = document.createElement('div');
+      warnEl.id = 'claimQuantityWarning';
+      warnEl.style.color = '#b71c1c';
+      warnEl.style.fontSize = '13px';
+      warnEl.style.marginTop = '6px';
+      beneficiariesInput.parentNode.appendChild(warnEl);
+    }
+    warnEl.textContent = '';
+
+    // Attach input handler to enforce max and show warning
+    beneficiariesInput.oninput = () => {
+      const val = parseInt(beneficiariesInput.value) || 0;
+      if (val > availableQty) {
+        beneficiariesInput.value = availableQty;
+        warnEl.textContent = `Quantity exceeded — reduced to maximum available (${availableQty}).`;
+      } else {
+        warnEl.textContent = '';
+      }
+    };
   }
 
   // Show modal
@@ -712,6 +769,18 @@ document.addEventListener('submit', async (e) => {
       notes: document.getElementById('claimNotes').value
     };
 
+    // Ensure beneficiaries do not exceed available quantity (defensive check)
+    try {
+      const donation = allDonations.find(d => String(d._id) === String(selectedDonation.id));
+      const availableQty = donation && donation.quantity !== undefined ? parseAvailableQuantity(donation.quantity) : 1;
+      if (claimData.beneficiaries > availableQty) {
+        claimData.beneficiaries = availableQty;
+        alert(`Requested quantity exceeded available amount — reduced to ${availableQty}.`);
+      }
+    } catch (err) {
+      console.warn('Could not validate beneficiaries vs available quantity:', err);
+    }
+
     const response = await fetch(`http://localhost:5000/api/donations/${selectedDonation.id}/claim`, {
       method: 'POST',
       headers: {
@@ -728,6 +797,11 @@ document.addEventListener('submit', async (e) => {
     }
 
     const data = await response.json();
+
+    // Show server-side warning if present (server may adjust beneficiaries)
+    if (data.warning) {
+      alert(data.warning);
+    }
 
     alert(`Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
     closeModal();
@@ -775,9 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const addressField = document.getElementById('claimAddress');
       const statusEl = document.getElementById('claimLocationStatus');
       const mapDiv = document.getElementById('claimLocationMap');
-      const btn = e.target;
+      const btn = claimLocationBtn;
 
-      // Check if Geolocation API is available
       if (!navigator.geolocation) {
         alert('Geolocation is not supported by your browser');
         return;
@@ -785,121 +858,167 @@ document.addEventListener('DOMContentLoaded', () => {
 
       btn.disabled = true;
       btn.textContent = 'Getting location...';
-      statusEl.textContent = 'Acquiring precise location...';
+      statusEl.textContent = 'Attempting quick location...';
 
-      // Use high accuracy options for better precision
-      const options = {
-        enableHighAccuracy: true,      // Request high accuracy (uses GPS if available)
-        timeout: 10000,                 // Wait up to 10 seconds for GPS
-        maximumAge: 0                   // Don't use cached position, get fresh data
-      };
+      // Helper to show coords on the map and create draggable marker
+      function showOnMap(lat, lon, accuracy) {
+        window.claimCoordinates = { latitude: lat, longitude: lon };
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-
-          try {
-            // Store coordinates for later use
-            window.claimCoordinates = { latitude, longitude };
-
-            // Initialize Leaflet map if not already done
-            if (!claimLocationMap) {
-              claimLocationMap = L.map('claimLocationMap').setView([latitude, longitude], 18);
-
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 19
-              }).addTo(claimLocationMap);
-            } else {
-              claimLocationMap.setView([latitude, longitude], 18);
-            }
-
-            // Add accuracy circle to show precision range
-            const accuracyCircle = L.circle([latitude, longitude], {
-              radius: accuracy,
-              color: '#007bff',
-              fill: true,
-              fillColor: '#007bff',
-              fillOpacity: 0.1,
-              weight: 2,
-              dashArray: '5, 5'
+        try {
+          if (!claimLocationMap) {
+            claimLocationMap = L.map('claimLocationMap').setView([lat, lon], 18);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors',
+              maxZoom: 19
             }).addTo(claimLocationMap);
+          } else {
+            claimLocationMap.setView([lat, lon], 18);
+          }
 
-            // Display accuracy info
-            const accuracyText = accuracy < 10 ? 'Very High' :
-              accuracy < 50 ? 'High' :
-                accuracy < 100 ? 'Medium' : 'Low';
-            statusEl.textContent = `Location obtained (Accuracy: ${Math.round(accuracy)}m - ${accuracyText}). You can drag the marker to adjust.`;
-            console.log(`📍 Location accuracy: ${accuracy.toFixed(2)}m (${accuracyText})`);
+          // Remove previous circles and marker
+          claimLocationMap.eachLayer(layer => {
+            if (layer instanceof L.Circle) claimLocationMap.removeLayer(layer);
+          });
+          if (claimLocationMarker) {
+            try { claimLocationMap.removeLayer(claimLocationMarker); } catch (e) { }
+          }
 
-            // Remove old marker if exists
-            if (claimLocationMarker) {
-              claimLocationMap.removeLayer(claimLocationMarker);
-            }
+          const accuracyCircle = L.circle([lat, lon], {
+            radius: accuracy || 50,
+            color: '#007bff',
+            fill: true,
+            fillColor: '#007bff',
+            fillOpacity: 0.1,
+            weight: 2,
+            dashArray: '5, 5'
+          }).addTo(claimLocationMap);
 
-            // Add marker at current location (draggable)
-            claimLocationMarker = L.marker([latitude, longitude], {
-              draggable: true,
-              title: 'Drag to adjust location'
-            }).addTo(claimLocationMap);
+          claimLocationMarker = L.marker([lat, lon], { draggable: true, title: 'Drag to adjust location' }).addTo(claimLocationMap);
 
-            // Update coordinates when marker is dragged
-            claimLocationMarker.on('dragend', function () {
-              const latLng = claimLocationMarker.getLatLng();
-              window.claimCoordinates = {
-                latitude: latLng.lat,
-                longitude: latLng.lng
-              };
-              // Remove old accuracy circle
-              claimLocationMap.eachLayer(layer => {
-                if (layer instanceof L.Circle && layer !== claimLocationMarker) {
-                  claimLocationMap.removeLayer(layer);
-                }
-              });
-              updateClaimLocationAddress(latLng.lat, latLng.lng);
+          claimLocationMarker.on('dragend', function () {
+            const latLng = claimLocationMarker.getLatLng();
+            window.claimCoordinates = { latitude: latLng.lat, longitude: latLng.lng };
+            // Remove previous accuracy circles
+            claimLocationMap.eachLayer(layer => {
+              if (layer instanceof L.Circle && layer !== claimLocationMarker) {
+                claimLocationMap.removeLayer(layer);
+              }
             });
+            updateClaimLocationAddress(latLng.lat, latLng.lng);
+          });
 
-            // Update address on map
-            await updateClaimLocationAddress(latitude, longitude);
+          mapDiv.style.display = 'block';
+        } catch (err) {
+          console.warn('Map update failed:', err);
+        }
+      }
 
-            // Show map
-            mapDiv.style.display = 'block';
-            statusEl.textContent = 'Location obtained. You can drag the marker to adjust.';
+      // Utility: run a promise with timeout
+      function withTimeout(promise, ms) {
+        return Promise.race([
+          promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+        ]);
+      }
 
-          } catch (err) {
-            console.error('Location error:', err);
-            statusEl.textContent = '❌ Error processing location';
-            alert('Error processing location: ' + err.message);
+      // Use cached recent location if present (ten minutes)
+      try {
+        const cached = JSON.parse(localStorage.getItem('lastKnownLocation') || 'null');
+        if (cached && cached.ts && (Date.now() - cached.ts) < 10 * 60 * 1000) {
+          showOnMap(cached.latitude, cached.longitude, cached.accuracy || 500);
+          // Attempt reverse geocoding but don't block UI
+          updateClaimLocationAddress(cached.latitude, cached.longitude).catch(() => { });
+          statusEl.textContent = 'Using recent location (approx). Refining in background...';
+        }
+      } catch (e) {
+        console.warn('Failed to read cached location', e);
+      }
+
+      // Quick coarse attempt (fast, low power) then refine in background
+      const quickOpts = { enableHighAccuracy: false, timeout: 3000, maximumAge: 60 * 1000 };
+      const refineOpts = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+
+      let didQuick = false;
+
+      navigator.geolocation.getCurrentPosition(async (posQuick) => {
+        didQuick = true;
+        const { latitude, longitude, accuracy } = posQuick.coords;
+        showOnMap(latitude, longitude, accuracy);
+        statusEl.textContent = `Quick location found (Accuracy: ${Math.round(accuracy || 0)}m). Refining...`;
+
+        // Start reverse geocoding but don't block refinement
+        withTimeout(updateClaimLocationAddress(latitude, longitude), 3500).catch(() => { });
+
+        // Start refine in background
+        navigator.geolocation.getCurrentPosition(async (posRefine) => {
+          const { latitude: rlat, longitude: rlon, accuracy: racc } = posRefine.coords;
+          showOnMap(rlat, rlon, racc);
+          statusEl.textContent = `Location obtained (Accuracy: ${Math.round(racc || 0)}m). You can drag the marker to adjust.`;
+          try { await updateClaimLocationAddress(rlat, rlon); } catch (e) { }
+          try {
+            localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: rlat, longitude: rlon, accuracy: racc || 0, ts: Date.now() }));
+          } catch (e) { }
+          btn.disabled = false;
+          btn.textContent = 'Use Current Location';
+        }, async (refineErr) => {
+          console.warn('High-accuracy refine failed', refineErr);
+          // If refine fails but quick exists, accept quick and leave it
+          if (didQuick) {
+            statusEl.textContent = 'Using approximate location. You can drag the marker to adjust.';
+          }
+          // Fallback to IP-based approximate location if neither quick nor refine worked
+          btn.disabled = false;
+          btn.textContent = 'Use Current Location';
+        }, refineOpts);
+
+      }, async (quickErr) => {
+        console.warn('Quick geolocation failed', quickErr);
+        statusEl.textContent = 'Quick location failed; attempting high-accuracy (may take longer)...';
+
+        // Try high-accuracy directly
+        navigator.geolocation.getCurrentPosition(async (posRefine) => {
+          const { latitude, longitude, accuracy } = posRefine.coords;
+          showOnMap(latitude, longitude, accuracy);
+          statusEl.textContent = `Location obtained (Accuracy: ${Math.round(accuracy || 0)}m). You can drag the marker to adjust.`;
+          try { await updateClaimLocationAddress(latitude, longitude); } catch (e) { }
+          try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude, longitude, accuracy: accuracy || 0, ts: Date.now() })); } catch (e) { }
+          btn.disabled = false;
+          btn.textContent = 'Use Current Location';
+        }, async (highErr) => {
+          console.warn('High-accuracy geolocation failed', highErr);
+          statusEl.textContent = 'Unable to get device location quickly. Falling back to approximate IP location.';
+
+          // Fallback: IP-based geolocation (coarse) — non-blocking and optional
+          try {
+            const resp = await fetch('https://ipapi.co/json/');
+            if (resp.ok) {
+              const ipdata = await resp.json();
+              if (ipdata && ipdata.latitude && ipdata.longitude) {
+                const lat = parseFloat(ipdata.latitude);
+                const lon = parseFloat(ipdata.longitude);
+                showOnMap(lat, lon, 1000);
+                statusEl.textContent = 'Approximate location determined from IP address. You can adjust the marker if needed.';
+                try { await updateClaimLocationAddress(lat, lon); } catch (e) { }
+                try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: lat, longitude: lon, accuracy: 1000, ts: Date.now() })); } catch (e) { }
+              } else {
+                throw new Error('IP lookup returned no coordinates');
+              }
+            } else {
+              throw new Error('IP lookup failed');
+            }
+          } catch (ipErr) {
+            console.warn('IP geolocation fallback failed', ipErr);
+            statusEl.textContent = 'Failed to determine location. Please enter address manually.';
+            alert('Unable to obtain your location automatically. Please enter address manually or try again later.');
           } finally {
             btn.disabled = false;
             btn.textContent = 'Use Current Location';
           }
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
 
-          // Handle different error types
-          let errorMsg = '';
-          if (error.code === error.PERMISSION_DENIED) {
-            errorMsg = 'Location permission denied. Please enable location access in browser settings.';
-            statusEl.textContent = '❌ Location permission denied';
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            errorMsg = 'Location information is unavailable. Please try again or enable GPS.';
-            statusEl.textContent = '❌ GPS signal not available - try outdoors';
-          } else if (error.code === error.TIMEOUT) {
-            errorMsg = 'Location request timed out. Please try again with better GPS signal.';
-            statusEl.textContent = '⏱️ Location timeout - move to open area with better sky view';
-          } else {
-            errorMsg = 'Unable to get location: ' + error.message;
-            statusEl.textContent = '❌ Location acquisition failed';
-          }
+        }, refineOpts);
 
-          alert(errorMsg);
-          btn.disabled = false;
-          btn.textContent = 'Use Current Location';
-        },
-        options
-      );
+      }, quickOpts);
+
     });
   }
 });
@@ -912,89 +1031,81 @@ async function updateClaimLocationAddress(latitude, longitude) {
   console.log(`🔍 Geocoding coordinates for claim: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
 
   try {
-    // Use OpenStreetMap Nominatim with zoom level 18 for higher precision (building/house level)
-    console.log('📍 Using OpenStreetMap Nominatim for high-precision address lookup (zoom 18)...');
+    // Try OpenStreetMap Nominatim first (use jsonv2 and addressdetails)
+    console.log('📍 Trying OpenStreetMap Nominatim reverse geocode...');
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=en`;
+    let nominatimData = null;
+    try {
+      const nominatimResponse = await fetch(nominatimUrl);
+      if (nominatimResponse.ok) {
+        nominatimData = await nominatimResponse.json();
+      } else {
+        console.warn('Nominatim response not OK:', nominatimResponse.status);
+      }
+    } catch (nerr) {
+      console.warn('Nominatim fetch failed:', nerr);
+    }
 
-    // Format coordinates with 6 decimal places for better precision (~0.1m accuracy)
-    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18`;
-    const nominatimResponse = await fetch(nominatimUrl, {
-      headers: { 'Accept-Language': 'en' }
-    });
+    if (nominatimData) {
+      // Prefer detailed assembly from address parts
+      const addr = nominatimData.address || {};
+      const parts = [];
+      if (addr.house_number) parts.push(addr.house_number);
+      if (addr.road && !addr.road.toLowerCase().includes('expressway') && !addr.road.toLowerCase().includes('highway')) parts.push(addr.road);
+      if (addr.amenity) parts.push(addr.amenity);
+      else if (addr.building) parts.push(addr.building);
+      if (addr.village) parts.push(addr.village);
+      else if (addr.town) parts.push(addr.town);
+      else if (addr.suburb) parts.push(addr.suburb);
+      else if (addr.neighbourhood) parts.push(addr.neighbourhood);
+      if (addr.city) parts.push(addr.city);
+      else if (addr.county) parts.push(addr.county);
+      if (addr.state) parts.push(addr.state);
+      if (addr.postcode) parts.push(addr.postcode);
 
-    if (nominatimResponse.ok) {
-      const nominatimData = await nominatimResponse.json();
-
-      if (nominatimData.address) {
-        // Build address from OSM components with more detailed info
-        const addr = nominatimData.address;
-        const addressParts = [];
-
-        // Log raw address data for debugging
-        console.log('📍 Raw address data from Nominatim:', addr);
-
-        // Add house number if available
-        if (addr.house_number) {
-          addressParts.push(addr.house_number);
-        }
-
-        // Add street address if available (but avoid highways)
-        if (addr.road && !addr.road.toLowerCase().includes('expressway') && !addr.road.toLowerCase().includes('highway')) {
-          addressParts.push(addr.road);
-        }
-
-        // Prefer specific location names: college, university, building, etc.
-        if (addr.amenity) {
-          addressParts.push(addr.amenity);
-        } else if (addr.building) {
-          addressParts.push(addr.building);
-        }
-
-        // Prefer village/town/suburb as starting point
-        if (addr.village) {
-          addressParts.push(addr.village);
-        } else if (addr.town) {
-          addressParts.push(addr.town);
-        } else if (addr.suburb) {
-          addressParts.push(addr.suburb);
-        } else if (addr.neighbourhood) {
-          addressParts.push(addr.neighbourhood);
-        }
-
-        // Add city/district
-        if (addr.city) {
-          addressParts.push(addr.city);
-        } else if (addr.county) {
-          addressParts.push(addr.county);
-        }
-
-        // Add state and postcode
-        if (addr.state) {
-          addressParts.push(addr.state);
-        }
-
-        if (addr.postcode) {
-          addressParts.push(addr.postcode);
-        }
-
-        if (addressParts.length > 0) {
-          const fullAddress = addressParts.join(', ');
-          console.log('✅ Address found (OpenStreetMap):', fullAddress);
-          addressField.value = fullAddress;
-          statusEl.textContent = '✓ Address loaded from your location';
-          return;
-        }
+      if (parts.length > 0) {
+        const fullAddress = parts.join(', ');
+        console.log('✅ Nominatim address parts:', fullAddress);
+        addressField.value = fullAddress;
+        statusEl.textContent = '✓ Address loaded from your location';
+        return;
       }
 
-      // Fallback to display_name
+      // Fallback to display_name if parts missing
       if (nominatimData.display_name) {
-        console.log('✅ Address found (OSM display_name):', nominatimData.display_name);
+        console.log('✅ Nominatim display_name:', nominatimData.display_name);
         addressField.value = nominatimData.display_name;
         statusEl.textContent = '✓ Address loaded from your location';
         return;
       }
     }
 
-    console.warn('⚠️ OpenStreetMap lookup failed. Using coordinates instead.');
+    // If Nominatim failed or returned no useful fields, try BigDataCloud reverse geocode (coarse but reliable CORS)
+    try {
+      console.log('🔁 Falling back to BigDataCloud reverse geocode...');
+      const bigUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
+      const bigResp = await fetch(bigUrl);
+      if (bigResp.ok) {
+        const bigData = await bigResp.json();
+        const bigParts = [];
+        if (bigData.locality) bigParts.push(bigData.locality);
+        if (bigData.principalSubdivision) bigParts.push(bigData.principalSubdivision);
+        if (bigData.countryName) bigParts.push(bigData.countryName);
+        if (bigParts.length > 0) {
+          const full = bigParts.join(', ');
+          console.log('✅ BigDataCloud address:', full);
+          addressField.value = full;
+          statusEl.textContent = '✓ Address loaded (approx)';
+          return;
+        }
+      } else {
+        console.warn('BigDataCloud response not OK:', bigResp.status);
+      }
+    } catch (berr) {
+      console.warn('BigDataCloud lookup failed:', berr);
+    }
+
+    console.warn('⚠️ All reverse geocoding attempts failed. Using coordinates as fallback.');
     addressField.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
     statusEl.textContent = '⚠️ Using coordinates as fallback';
 

@@ -6,195 +6,200 @@ let currentRatingDonation = null;
 let searchTimeout = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('=== My Claims Page Loaded ===');
+  console.log('=== My Claims Page Loaded ===');
 
-    // Check authentication
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
+  // Check authentication
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
 
-    if (!token || !user) {
-        alert('Please log in first');
-        window.location.href = 'login.html';
-        return;
-    }
+  if (!token || !user) {
+    alert('Please log in first');
+    window.location.href = 'login.html';
+    return;
+  }
 
-    console.log(`✓ User authenticated: ${user.name}`);
+  console.log(`✓ User authenticated: ${user.name}`);
 
-    // Initialize star rating
-    setupStarRating();
+  // Initialize star rating
+  setupStarRating();
 
-    // Load user claims
-    await loadMyClaims();
+  // Load user claims
+  await loadMyClaims();
 
-    // Setup search and filter
-    setupSearchAndFilter();
+  // Setup search and filter
+  setupSearchAndFilter();
 
-    // Setup logout
-    document.querySelector('.logout').addEventListener('click', (e) => {
-        e.preventDefault();
-        logout();
-    });
+  // Setup logout
+  document.querySelector('.logout').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout();
+  });
 
-    console.log('=== My Claims Page Ready ===');
+  console.log('=== My Claims Page Ready ===');
 });
 
 // Load user's claimed donations
 async function loadMyClaims() {
+  try {
+    const token = localStorage.getItem('token');
+    console.log('Fetching user claims...');
+
+    const loadingEl = document.getElementById('loadingState');
+    const containerEl = document.getElementById('claimsContainer');
+    const emptyEl = document.getElementById('emptyState');
+
+    loadingEl.style.display = 'flex';
+    containerEl.innerHTML = '';
+    emptyEl.style.display = 'none';
+
+    const userObj = JSON.parse(localStorage.getItem('user') || 'null');
+    const currentUserId = userObj?.id || userObj?._id || userObj?.email || 'unknown';
+    const cacheKey = `donations_my_claims_${currentUserId}`;
+
+    let data;
     try {
-        const token = localStorage.getItem('token');
-        console.log('Fetching user claims...');
-
-        const loadingEl = document.getElementById('loadingState');
-        const containerEl = document.getElementById('claimsContainer');
-        const emptyEl = document.getElementById('emptyState');
-
-        loadingEl.style.display = 'flex';
-        containerEl.innerHTML = '';
-        emptyEl.style.display = 'none';
-
-        const response = await fetch('http://localhost:5000/api/donations/user/my-claims', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch claims: ${response.status}`);
+      data = await fetchJsonWithCache('http://localhost:5000/api/donations/user/my-claims', cacheKey, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
+      }, { ttl: 60 * 1000, background: true });
+      console.log(`✓ Fetched ${data.donations.length} claimed donations`);
+      allClaims = data.donations || [];
+    } catch (err) {
+      console.warn('Failed to fetch claims from network, falling back to cache', err);
+      const cached = cacheGet(cacheKey);
+      const cachedData = cached ? cached.v : null;
+      allClaims = (cachedData && cachedData.donations) || [];
+    }
+    filteredClaims = [...allClaims];
 
-        const data = await response.json();
-        console.log(`✓ Fetched ${data.donations.length} claimed donations`);
+    loadingEl.style.display = 'none';
+    updateStats();
+    displayClaims(filteredClaims);
 
-        allClaims = data.donations || [];
-        filteredClaims = [...allClaims];
+  } catch (error) {
+    console.error('Error loading claims:', error);
+    const loadingEl = document.getElementById('loadingState');
+    const containerEl = document.getElementById('claimsContainer');
 
-        loadingEl.style.display = 'none';
-        updateStats();
-        displayClaims(filteredClaims);
-
-    } catch (error) {
-        console.error('Error loading claims:', error);
-        const loadingEl = document.getElementById('loadingState');
-        const containerEl = document.getElementById('claimsContainer');
-
-        loadingEl.style.display = 'none';
-        containerEl.innerHTML = `
+    loadingEl.style.display = 'none';
+    containerEl.innerHTML = `
       <div style="text-align: center; padding: 40px; color: #999;">
         <i class="fa fa-exclamation-circle" style="font-size: 40px; margin-bottom: 10px;"></i>
         <p>Error loading claims: ${error.message}</p>
       </div>
     `;
-    }
+  }
 }
 
 // Update statistics
 function updateStats() {
-    const totalClaims = allClaims.length;
-    const pendingClaims = allClaims.filter(d => {
-        const claim = d.claims?.[0];
-        return claim && claim.status === 'pending';
-    }).length;
-    const acceptedClaims = allClaims.filter(d => {
-        const claim = d.claims?.[0];
-        return claim && claim.status === 'accepted';
-    }).length;
-    const completedClaims = allClaims.filter(d => d.status === 'Completed').length;
+  const totalClaims = allClaims.length;
+  const pendingClaims = allClaims.filter(d => {
+    const claim = d.claims?.[0];
+    return claim && claim.status === 'pending';
+  }).length;
+  const acceptedClaims = allClaims.filter(d => {
+    const claim = d.claims?.[0];
+    return claim && claim.status === 'accepted';
+  }).length;
+  const completedClaims = allClaims.filter(d => d.status === 'Completed').length;
 
-    document.getElementById('totalClaimsCount').textContent = totalClaims;
-    document.getElementById('pendingClaimsCount').textContent = pendingClaims;
-    document.getElementById('acceptedClaimsCount').textContent = acceptedClaims;
-    document.getElementById('completedClaimsCount').textContent = completedClaims;
+  document.getElementById('totalClaimsCount').textContent = totalClaims;
+  document.getElementById('pendingClaimsCount').textContent = pendingClaims;
+  document.getElementById('acceptedClaimsCount').textContent = acceptedClaims;
+  document.getElementById('completedClaimsCount').textContent = completedClaims;
 }
 
 // Display claims in container
 function displayClaims(claims) {
-    const container = document.getElementById('claimsContainer');
-    const emptyState = document.getElementById('emptyState');
+  const container = document.getElementById('claimsContainer');
+  const emptyState = document.getElementById('emptyState');
 
-    if (claims.length === 0) {
-        container.style.display = 'none';
-        emptyState.style.display = 'flex';
-        return;
-    }
+  if (claims.length === 0) {
+    container.style.display = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
 
-    container.style.display = 'grid';
-    emptyState.style.display = 'none';
+  container.style.display = 'grid';
+  emptyState.style.display = 'none';
 
-    try {
-        const fragment = document.createDocumentFragment();
-        claims.forEach((claim, index) => {
-            const card = document.createElement('div');
-            card.className = 'claim-card slide-in';
-            card.style.animationDelay = `${index * 0.05}s`;
-            card.innerHTML = createClaimCard(claim);
-            fragment.appendChild(card);
-        });
+  try {
+    const fragment = document.createDocumentFragment();
+    claims.forEach((claim, index) => {
+      const card = document.createElement('div');
+      card.className = 'claim-card slide-in';
+      card.style.animationDelay = `${index * 0.05}s`;
+      card.innerHTML = createClaimCard(claim);
+      fragment.appendChild(card);
+    });
 
-        container.innerHTML = '';
-        container.appendChild(fragment);
+    container.innerHTML = '';
+    container.appendChild(fragment);
 
-        console.log(`⚡ Rendered ${claims.length} claim cards`);
-    } catch (error) {
-        console.error('Error displaying claims:', error);
-        container.innerHTML = `
+    console.log(`⚡ Rendered ${claims.length} claim cards`);
+  } catch (error) {
+    console.error('Error displaying claims:', error);
+    container.innerHTML = `
       <div style="text-align: center; padding: 40px; color: #999;">
         <i class="fa fa-exclamation-circle" style="font-size: 40px; margin-bottom: 10px;"></i>
         <p>Error rendering claims: ${error.message}</p>
       </div>
     `;
-    }
+  }
 }
 
 // Create claim card HTML
 function createClaimCard(donation) {
-    const claim = donation.claims?.[0];
-    const claimStatus = claim?.status || 'pending';
-    const statusColors = {
-        'pending': '#ff9800',
-        'accepted': '#4caf50',
-        'rejected': '#f44336'
-    };
-    const statusIcons = {
-        'pending': 'fa-hourglass-half',
-        'accepted': 'fa-check-circle',
-        'rejected': 'fa-times-circle'
-    };
+  const claim = donation.claims?.[0];
+  const claimStatus = claim?.status || 'pending';
+  const statusColors = {
+    'pending': '#ff9800',
+    'accepted': '#4caf50',
+    'rejected': '#f44336'
+  };
+  const statusIcons = {
+    'pending': 'fa-hourglass-half',
+    'accepted': 'fa-check-circle',
+    'rejected': 'fa-times-circle'
+  };
 
-    const donorName = donation.userId?.name || 'Anonymous';
-    const donorLocation = donation.userId?.location || donation.location || 'Unknown';
-    const cookedDate = donation.cookedTime ? new Date(donation.cookedTime).toLocaleDateString() : 'N/A';
+  const donorName = donation.userId?.name || 'Anonymous';
+  const donorLocation = donation.userId?.location || donation.location || 'Unknown';
+  const cookedDate = donation.cookedTime ? new Date(donation.cookedTime).toLocaleDateString() : 'N/A';
 
-    const isCompleted = donation.status === 'Completed';
-    const isRated = isCompleted && donation.rating?.score;
+  const isCompleted = donation.status === 'Completed';
+  const isRated = isCompleted && donation.rating?.score;
 
-    let actionButtons = '';
-    if (claimStatus === 'accepted') {
-        if (isCompleted) {
-            if (isRated) {
-                actionButtons = `
+  let actionButtons = '';
+  if (claimStatus === 'accepted') {
+    if (isCompleted) {
+      if (isRated) {
+        actionButtons = `
           <button class="btn-small" disabled style="background: #2e7d32; cursor: not-allowed;">
             <i class="fa fa-star"></i> Rated
           </button>
         `;
-            } else {
-                actionButtons = `
+      } else {
+        actionButtons = `
           <button class="btn-small btn-rate" onclick="openRatingModal('${donation._id}', '${donation.food.replace(/'/g, "\\'")}')">
             <i class="fa fa-star"></i> Rate
           </button>
         `;
-            }
-        } else {
-            actionButtons = `
+      }
+    } else {
+      actionButtons = `
         <button class="btn-small btn-complete" onclick="openDetailModal('${donation._id}')">
           <i class="fa fa-info-circle"></i> Details
         </button>
       `;
-        }
     }
+  }
 
-    return `
+  return `
     <div class="card-header">
       <div>
         <h3 class="food-name">${donation.food}</h3>
@@ -272,74 +277,74 @@ function createClaimCard(donation) {
 
 // Setup search and filter
 function setupSearchAndFilter() {
-    const searchInput = document.getElementById('searchInput');
-    const statusFilter = document.getElementById('statusFilter');
+  const searchInput = document.getElementById('searchInput');
+  const statusFilter = document.getElementById('statusFilter');
 
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            applyFilters();
-        }, 300);
-    });
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      applyFilters();
+    }, 300);
+  });
 
-    statusFilter.addEventListener('change', () => {
-        applyFilters();
-    });
+  statusFilter.addEventListener('change', () => {
+    applyFilters();
+  });
 }
 
 // Apply filters
 function applyFilters() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
-    const statusFilter = document.getElementById('statusFilter').value;
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+  const statusFilter = document.getElementById('statusFilter').value;
 
-    filteredClaims = allClaims.filter(donation => {
-        // Status filter
-        let statusMatch = true;
-        if (statusFilter) {
-            const claimStatus = donation.claims?.[0]?.status || 'pending';
-            if (statusFilter === 'completed') {
-                statusMatch = donation.status === 'Completed';
-            } else {
-                statusMatch = claimStatus === statusFilter;
-            }
-        }
+  filteredClaims = allClaims.filter(donation => {
+    // Status filter
+    let statusMatch = true;
+    if (statusFilter) {
+      const claimStatus = donation.claims?.[0]?.status || 'pending';
+      if (statusFilter === 'completed') {
+        statusMatch = donation.status === 'Completed';
+      } else {
+        statusMatch = claimStatus === statusFilter;
+      }
+    }
 
-        // Search filter
-        let searchMatch = true;
-        if (searchTerm) {
-            const food = donation.food?.toLowerCase() || '';
-            const donor = donation.userId?.name?.toLowerCase() || '';
-            const location = donation.location?.toLowerCase() || '';
+    // Search filter
+    let searchMatch = true;
+    if (searchTerm) {
+      const food = donation.food?.toLowerCase() || '';
+      const donor = donation.userId?.name?.toLowerCase() || '';
+      const location = donation.location?.toLowerCase() || '';
 
-            searchMatch = food.includes(searchTerm) ||
-                donor.includes(searchTerm) ||
-                location.includes(searchTerm);
-        }
+      searchMatch = food.includes(searchTerm) ||
+        donor.includes(searchTerm) ||
+        location.includes(searchTerm);
+    }
 
-        return statusMatch && searchMatch;
-    });
+    return statusMatch && searchMatch;
+  });
 
-    displayClaims(filteredClaims);
+  displayClaims(filteredClaims);
 }
 
 // Open detail modal
 function openDetailModal(donationId) {
-    const donation = allClaims.find(d => d._id === donationId);
-    if (!donation) return;
+  const donation = allClaims.find(d => d._id === donationId);
+  if (!donation) return;
 
-    const claim = donation.claims?.[0];
-    const claimStatus = claim?.status || 'pending';
-    const statusColors = {
-        'pending': '#ff9800',
-        'accepted': '#4caf50',
-        'rejected': '#f44336'
-    };
+  const claim = donation.claims?.[0];
+  const claimStatus = claim?.status || 'pending';
+  const statusColors = {
+    'pending': '#ff9800',
+    'accepted': '#4caf50',
+    'rejected': '#f44336'
+  };
 
-    const claimedDate = claim?.claimedAt ? new Date(claim.claimedAt).toLocaleDateString() : 'N/A';
-    const acceptedDate = claim?.acceptedAt ? new Date(claim.acceptedAt).toLocaleDateString() : 'N/A';
-    const cookedDate = donation.cookedTime ? new Date(donation.cookedTime).toLocaleDateString() : 'N/A';
+  const claimedDate = claim?.claimedAt ? new Date(claim.claimedAt).toLocaleDateString() : 'N/A';
+  const acceptedDate = claim?.acceptedAt ? new Date(claim.acceptedAt).toLocaleDateString() : 'N/A';
+  const cookedDate = donation.cookedTime ? new Date(donation.cookedTime).toLocaleDateString() : 'N/A';
 
-    const content = `
+  const content = `
     <div class="detail-section">
       <h3>Food Details</h3>
       <div class="info-grid">
@@ -417,78 +422,78 @@ function openDetailModal(donationId) {
     </div>
   `;
 
-    document.getElementById('claimDetailContent').innerHTML = content;
-    document.getElementById('detailModal').style.display = 'flex';
+  document.getElementById('claimDetailContent').innerHTML = content;
+  document.getElementById('detailModal').style.display = 'flex';
 }
 
 // Close detail modal
 function closeDetailModal() {
-    document.getElementById('detailModal').style.display = 'none';
+  document.getElementById('detailModal').style.display = 'none';
 }
 
 // Setup star rating
 function setupStarRating() {
-    const stars = document.querySelectorAll('.star-rating i');
-    stars.forEach(star => {
-        star.addEventListener('click', () => {
-            const value = star.dataset.value;
-            document.getElementById('ratingScore').value = value;
+  const stars = document.querySelectorAll('.star-rating i');
+  stars.forEach(star => {
+    star.addEventListener('click', () => {
+      const value = star.dataset.value;
+      document.getElementById('ratingScore').value = value;
 
-            const ratingTexts = {
-                1: '😞 Poor',
-                2: '😐 Fair',
-                3: '🙂 Good',
-                4: '😊 Very Good',
-                5: '😍 Excellent'
-            };
+      const ratingTexts = {
+        1: '😞 Poor',
+        2: '😐 Fair',
+        3: '🙂 Good',
+        4: '😊 Very Good',
+        5: '😍 Excellent'
+      };
 
-            document.getElementById('ratingText').textContent = ratingTexts[value];
+      document.getElementById('ratingText').textContent = ratingTexts[value];
 
-            // Update star display
-            stars.forEach((s, index) => {
-                if (index < value) {
-                    s.classList.remove('far');
-                    s.classList.add('fas');
-                } else {
-                    s.classList.add('far');
-                    s.classList.remove('fas');
-                }
-            });
-        });
-
-        star.addEventListener('mouseover', () => {
-            const value = star.dataset.value;
-            stars.forEach((s, index) => {
-                if (index < value) {
-                    s.classList.remove('far');
-                    s.classList.add('fas');
-                } else {
-                    s.classList.add('far');
-                    s.classList.remove('fas');
-                }
-            });
-        });
+      // Update star display
+      stars.forEach((s, index) => {
+        if (index < value) {
+          s.classList.remove('far');
+          s.classList.add('fas');
+        } else {
+          s.classList.add('far');
+          s.classList.remove('fas');
+        }
+      });
     });
 
-    document.querySelector('.star-rating').addEventListener('mouseout', () => {
-        const currentValue = document.getElementById('ratingScore').value;
-        stars.forEach((s, index) => {
-            if (index < currentValue) {
-                s.classList.remove('far');
-                s.classList.add('fas');
-            } else {
-                s.classList.add('far');
-                s.classList.remove('fas');
-            }
-        });
+    star.addEventListener('mouseover', () => {
+      const value = star.dataset.value;
+      stars.forEach((s, index) => {
+        if (index < value) {
+          s.classList.remove('far');
+          s.classList.add('fas');
+        } else {
+          s.classList.add('far');
+          s.classList.remove('fas');
+        }
+      });
     });
+  });
+
+  document.querySelector('.star-rating').addEventListener('mouseout', () => {
+    const currentValue = document.getElementById('ratingScore').value;
+    stars.forEach((s, index) => {
+      if (index < currentValue) {
+        s.classList.remove('far');
+        s.classList.add('fas');
+      } else {
+        s.classList.add('far');
+        s.classList.remove('fas');
+      }
+    });
+  });
 }
 
 // Open rating modal
 function openRatingModal(donationId, foodName) {
-    currentRatingDonation = donationId;
+  currentRatingDonation = donationId;
 
-    document.getElementById('donationInfo').innerHTML = `
+  document.getElementById('donationInfo').innerHTML = `
     <div style="font-weight: 600; font-size: 16px; margin-bottom: 10px;">
       🍽️ ${foodName}
     </div>
@@ -497,127 +502,129 @@ function openRatingModal(donationId, foodName) {
     </p>
   `;
 
-    // Reset form
-    document.getElementById('ratingForm').reset();
-    document.getElementById('ratingScore').value = 0;
-    document.getElementById('ratingText').textContent = '';
-    document.querySelectorAll('.star-rating i').forEach(s => {
-        s.classList.remove('fas');
-        s.classList.add('far');
-    });
+  // Reset form
+  document.getElementById('ratingForm').reset();
+  document.getElementById('ratingScore').value = 0;
+  document.getElementById('ratingText').textContent = '';
+  document.querySelectorAll('.star-rating i').forEach(s => {
+    s.classList.remove('fas');
+    s.classList.add('far');
+  });
 
-    document.getElementById('ratingModal').style.display = 'flex';
+  document.getElementById('ratingModal').style.display = 'flex';
 }
 
 // Close rating modal
 function closeRatingModal() {
-    document.getElementById('ratingModal').style.display = 'none';
-    currentRatingDonation = null;
+  document.getElementById('ratingModal').style.display = 'none';
+  currentRatingDonation = null;
 }
 
 // Handle rating form submission
 document.addEventListener('submit', async (e) => {
-    if (e.target.id !== 'ratingForm') return;
+  if (e.target.id !== 'ratingForm') return;
 
-    e.preventDefault();
+  e.preventDefault();
 
-    const token = localStorage.getItem('token');
-    const score = parseInt(document.getElementById('ratingScore').value);
-    const review = document.getElementById('reviewText').value.trim();
+  const token = localStorage.getItem('token');
+  const score = parseInt(document.getElementById('ratingScore').value);
+  const review = document.getElementById('reviewText').value.trim();
 
-    if (!score || score < 1 || score > 5) {
-        alert('Please select a rating');
-        return;
+  if (!score || score < 1 || score > 5) {
+    alert('Please select a rating');
+    return;
+  }
+
+  try {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⏳ Submitting...';
+
+    const response = await fetch(
+      `http://localhost:5000/api/donations/${currentRatingDonation}/complete`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          rating: {
+            score,
+            review
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to submit rating');
     }
 
-    try {
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '⏳ Submitting...';
+    console.log('✓ Rating submitted successfully');
+    try { clearCachePrefix('donations_'); } catch (e) { console.warn('Failed to clear donation caches', e); }
+    alert('✅ Thank you for your rating!');
+    closeRatingModal();
+    await loadMyClaims();
 
-        const response = await fetch(
-            `http://localhost:5000/api/donations/${currentRatingDonation}/complete`,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    rating: {
-                        score,
-                        review
-                    }
-                })
-            }
-        );
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to submit rating');
-        }
-
-        console.log('✓ Rating submitted successfully');
-        alert('✅ Thank you for your rating!');
-        closeRatingModal();
-        await loadMyClaims();
-
-    } catch (error) {
-        console.error('Error submitting rating:', error);
-        alert(`❌ Error: ${error.message}`);
-    } finally {
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Submit Rating';
-        }
+  } catch (error) {
+    console.error('Error submitting rating:', error);
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Submit Rating';
     }
+  }
 });
 
 // Unclaim donation
 async function unclaimDonation(donationId) {
-    if (!confirm('Are you sure you want to unclaim this donation?')) {
-        return;
-    }
+  if (!confirm('Are you sure you want to unclaim this donation?')) {
+    return;
+  }
 
-    const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token');
 
-    try {
-        const response = await fetch(
-            `http://localhost:5000/api/donations/${donationId}/claim`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to unclaim donation');
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/donations/${donationId}/claim`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
+      }
+    );
 
-        console.log('✓ Donation unclaimed successfully');
-        alert('✅ You have unclaimed this donation');
-        await loadMyClaims();
-
-    } catch (error) {
-        console.error('Error unclaiming donation:', error);
-        alert(`❌ Error: ${error.message}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to unclaim donation');
     }
+
+    console.log('✓ Donation unclaimed successfully');
+    try { clearCachePrefix('donations_'); } catch (e) { console.warn('Failed to clear donation caches', e); }
+    alert('✅ You have unclaimed this donation');
+    await loadMyClaims();
+
+  } catch (error) {
+    console.error('Error unclaiming donation:', error);
+    alert(`❌ Error: ${error.message}`);
+  }
 }
 
 // Close modals when clicking outside
 document.addEventListener('click', (e) => {
-    const ratingModal = document.getElementById('ratingModal');
-    const detailModal = document.getElementById('detailModal');
+  const ratingModal = document.getElementById('ratingModal');
+  const detailModal = document.getElementById('detailModal');
 
-    if (e.target === ratingModal) {
-        closeRatingModal();
-    }
-    if (e.target === detailModal) {
-        closeDetailModal();
-    }
+  if (e.target === ratingModal) {
+    closeRatingModal();
+  }
+  if (e.target === detailModal) {
+    closeDetailModal();
+  }
 });

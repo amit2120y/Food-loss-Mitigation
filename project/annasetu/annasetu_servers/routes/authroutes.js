@@ -8,6 +8,8 @@ const {
   googleCallback,
   getGoogleLoginSuccess,
   getUserStats,
+  resyncGoogleProfile,
+  getUserByEmail,
   resendVerification,
   verifyEmail,
   analyzeFoodWithAI,
@@ -31,7 +33,8 @@ router.get("/google", (req, res) => {
     redirect_uri: process.env.GOOGLE_CALLBACK_URL,
     response_type: "code",
     scope: "profile email",
-    access_type: "offline"
+    access_type: "offline",
+    prompt: "consent"
   }).toString()}`;
 
   res.redirect(googleAuthUrl);
@@ -213,6 +216,8 @@ async function handleGoogleOAuthCode(code, res) {
             googleName: profile.name,
             googleEmail: profile.email,
             googleProfilePicture: profile.picture,
+            // Persist refresh token if available
+            googleRefreshToken: tokenData.refresh_token || existingEmailUser.googleRefreshToken,
             authMethod: 'google'
           },
           { new: true }
@@ -227,12 +232,21 @@ async function handleGoogleOAuthCode(code, res) {
           googleName: profile.name,
           googleEmail: profile.email,
           googleProfilePicture: profile.picture,
+          // Store refresh token when provided by Google
+          googleRefreshToken: tokenData.refresh_token || undefined,
           authMethod: 'google'
         });
         console.log("✓ Step 4b SUCCESS: New user created. User ID:", user._id);
       }
     } else {
       console.log("✓ Step 4c SUCCESS: User already exists with googleId. User ID:", user._id);
+      // Update profile picture and refresh token if available
+      const update = {};
+      if (profile.picture) update.googleProfilePicture = profile.picture;
+      if (tokenData.refresh_token) update.googleRefreshToken = tokenData.refresh_token;
+      if (Object.keys(update).length) {
+        user = await User.findByIdAndUpdate(user._id, update, { new: true });
+      }
     }
 
     console.log("Step 5: Creating JWT token for our app...");
@@ -256,10 +270,12 @@ async function handleGoogleOAuthCode(code, res) {
 }
 
 router.get("/google/login-success", getGoogleLoginSuccess);
+router.post("/google/resync", resyncGoogleProfile);
 router.get("/user-stats", getUserStats);
 router.post("/analyze-food", analyzeFoodWithAI);
 
 // User endpoints
+router.get("/users/by-email", getUserByEmail);
 router.put("/users/profile", updateProfile);
 router.post("/users/change-password", changePassword);
 

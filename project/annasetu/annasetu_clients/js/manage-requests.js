@@ -6,199 +6,202 @@ let currentPage = 1;
 const itemsPerPage = 12;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Check authentication
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
+  // Check authentication
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
 
-    if (!token || !user) {
-        alert('Please log in first');
-        window.location.href = 'login.html';
-        return;
-    }
+  if (!token || !user) {
+    alert('Please log in first');
+    window.location.href = 'login.html';
+    return;
+  }
 
-    // Load all requests
-    await loadAllRequests();
+  // Load all requests
+  await loadAllRequests();
 
-    // Setup search functionality
-    const searchInput = document.getElementById('searchRequests');
-    let searchTimeout;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            handleSearch();
-        }, 300);
-    });
+  // Setup search functionality
+  const searchInput = document.getElementById('searchRequests');
+  let searchTimeout;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      handleSearch();
+    }, 300);
+  });
 });
 
 // Load all requests for donor's donations
 async function loadAllRequests() {
+  try {
+    const token = localStorage.getItem('token');
+    const loadingEl = document.getElementById('loadingState');
+    const emptyEl = document.getElementById('emptyState');
+    const containerEl = document.getElementById('requestsContainer');
+
+    loadingEl.classList.remove('hidden');
+    emptyEl.classList.add('hidden');
+    containerEl.innerHTML = '';
+
+    // Fetch user's donations (use cache for faster loads)
+    const userObj = JSON.parse(localStorage.getItem('user') || 'null');
+    const currentUserId = userObj?.id || userObj?._id || userObj?.email || 'unknown';
+    const cacheKey = `donations_my_${currentUserId}`;
+
+    let body;
     try {
-        const token = localStorage.getItem('token');
-        const loadingEl = document.getElementById('loadingState');
-        const emptyEl = document.getElementById('emptyState');
-        const containerEl = document.getElementById('requestsContainer');
+      body = await fetchJsonWithCache('http://localhost:5000/api/donations/my-donations', cacheKey, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      }, { ttl: 60 * 1000, background: true });
+    } catch (err) {
+      console.warn('Failed to fetch donations for requests from network, falling back to cache', err);
+      const cached = cacheGet(cacheKey);
+      body = cached ? cached.v : null;
+    }
 
-        loadingEl.classList.remove('hidden');
-        emptyEl.classList.add('hidden');
-        containerEl.innerHTML = '';
+    const donations = (body && body.donations) || [];
 
-        // Fetch user's donations
-        const res = await fetch('http://localhost:5000/api/donations/my-donations', {
-            headers: { Authorization: `Bearer ${token}` }
+    // Collect all claims from all donations
+    allRequests = [];
+    donations.forEach((donation) => {
+      if (donation.claims && donation.claims.length > 0) {
+        donation.claims.forEach((claim) => {
+
+          const requestObj = {
+            ...claim,
+            donationId: donation._id,
+            food: donation.food,
+            foodType: donation.foodType,
+            quantity: donation.quantity,
+            location: donation.location,
+            cookedTime: donation.cookedTime
+          };
+
+          allRequests.push(requestObj);
         });
+      }
+    });
 
-        if (!res.ok) {
-            throw new Error(`Failed to fetch donations: ${res.status}`);
-        }
+    // Apply initial filter
+    filterRequests('all');
 
-        const body = await res.json();
-        const donations = body.donations || [];
+    // Update statistics
+    updateStatistics();
 
-        // Collect all claims from all donations
-        allRequests = [];
-        donations.forEach((donation) => {
-            if (donation.claims && donation.claims.length > 0) {
-                donation.claims.forEach((claim) => {
+    loadingEl.classList.add('hidden');
 
-                    const requestObj = {
-                        ...claim,
-                        donationId: donation._id,
-                        food: donation.food,
-                        foodType: donation.foodType,
-                        quantity: donation.quantity,
-                        location: donation.location,
-                        cookedTime: donation.cookedTime
-                    };
+    if (allRequests.length === 0) {
+      emptyEl.classList.remove('hidden');
+    }
 
-                    allRequests.push(requestObj);
-                });
-            }
-        });
-
-        // Apply initial filter
-        filterRequests('all');
-
-        // Update statistics
-        updateStatistics();
-
-        loadingEl.classList.add('hidden');
-
-        if (allRequests.length === 0) {
-            emptyEl.classList.remove('hidden');
-        }
-
-    } catch (error) {
-        console.error('Error loading requests:', error);
-        const loadingEl = document.getElementById('loadingState');
-        loadingEl.classList.add('hidden');
-        document.getElementById('requestsContainer').innerHTML = `
+  } catch (error) {
+    console.error('Error loading requests:', error);
+    const loadingEl = document.getElementById('loadingState');
+    loadingEl.classList.add('hidden');
+    document.getElementById('requestsContainer').innerHTML = `
       <div style="text-align: center; padding: 40px; color: #f44336;">
         <p>Error loading requests: ${error.message}</p>
       </div>
     `;
-    }
+  }
 }
 
 // Filter requests by status
 function filterRequests(status) {
-    currentFilter = status;
+  currentFilter = status;
 
-    // Update active button - handle both click events and programmatic calls
-    const buttons = document.querySelectorAll('.filter-btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
+  // Update active button - clear all then mark the matching button
+  const buttons = Array.from(document.querySelectorAll('.filter-btn'));
+  buttons.forEach(btn => btn.classList.remove('active'));
 
-    // Only update active class if event.target exists
-    if (event && event.target) {
-        event.target.classList.add('active');
-    } else {
-        // Programmatic call - find and activate the correct button
-        buttons.forEach(btn => {
-            const btnStatus = btn.textContent.toLowerCase();
-            if ((status === 'all' && btnStatus.includes('all')) ||
-                (status === 'pending' && btnStatus.includes('pending')) ||
-                (status === 'accepted' && btnStatus.includes('accepted')) ||
-                (status === 'rejected' && btnStatus.includes('rejected'))) {
-                btn.classList.add('active');
-            }
-        });
-    }
+  // Try to find a button that matches the requested status and mark it active
+  const statusLower = String(status || '').toLowerCase();
+  let matched = buttons.find(btn => {
+    const txt = (btn.textContent || '').trim().toLowerCase();
+    if (statusLower === 'all') return txt.includes('all');
+    return txt.includes(statusLower);
+  });
 
-    if (status === 'all') {
-        filteredRequests = [...allRequests];
-    } else {
-        filteredRequests = allRequests.filter(r => r.status === status);
-    }
+  // Fallback: if no match found, use the first button
+  if (!matched && buttons.length) matched = buttons[0];
+  if (matched && matched.classList) matched.classList.add('active');
 
-    displayRequests();
+  if (status === 'all') {
+    filteredRequests = [...allRequests];
+  } else {
+    filteredRequests = allRequests.filter(r => r.status === status);
+  }
+
+  displayRequests();
 }
 
 // Search requests
 function handleSearch() {
-    const searchTerm = document.getElementById('searchRequests').value.toLowerCase();
+  const searchTerm = document.getElementById('searchRequests').value.toLowerCase();
 
-    if (!searchTerm) {
-        filterRequests(currentFilter);
-        return;
-    }
+  if (!searchTerm) {
+    filterRequests(currentFilter);
+    return;
+  }
 
-    const baseRequests = currentFilter === 'all' ? allRequests : allRequests.filter(r => r.status === currentFilter);
+  const baseRequests = currentFilter === 'all' ? allRequests : allRequests.filter(r => r.status === currentFilter);
 
-    filteredRequests = baseRequests.filter(req =>
-        req.food.toLowerCase().includes(searchTerm) ||
-        req.userName.toLowerCase().includes(searchTerm) ||
-        req.address.toLowerCase().includes(searchTerm) ||
-        req.purpose.toLowerCase().includes(searchTerm)
-    );
+  filteredRequests = baseRequests.filter(req =>
+    req.food.toLowerCase().includes(searchTerm) ||
+    req.userName.toLowerCase().includes(searchTerm) ||
+    req.address.toLowerCase().includes(searchTerm) ||
+    req.purpose.toLowerCase().includes(searchTerm)
+  );
 
-    displayRequests();
+  displayRequests();
 }
 
 // Display requests in grid
 function displayRequests() {
-    const container = document.getElementById('requestsContainer');
-    container.innerHTML = '';
+  const container = document.getElementById('requestsContainer');
+  container.innerHTML = '';
 
-    if (filteredRequests.length === 0) {
-        const emptyMsg = currentFilter === 'all'
-            ? 'No requests available. When someone claims your food, their request will appear here.'
-            : `No ${currentFilter} requests found.`;
-        container.innerHTML = `
+  if (filteredRequests.length === 0) {
+    const emptyMsg = currentFilter === 'all'
+      ? 'No requests available. When someone claims your food, their request will appear here.'
+      : `No ${currentFilter} requests found.`;
+    container.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #999;">
         <p>${emptyMsg}</p>
       </div>
     `;
-        return;
-    }
+    return;
+  }
 
-    filteredRequests.forEach((request) => {
-        const card = createRequestCard(request);
-        container.appendChild(card);
-    });
+  filteredRequests.forEach((request) => {
+    const card = createRequestCard(request);
+    container.appendChild(card);
+  });
 }
 
 // Create request card element
 function createRequestCard(request) {
-    const div = document.createElement('div');
+  const div = document.createElement('div');
 
-    const statusColor = {
-        'pending': '#ff9800',
-        'accepted': '#4caf50',
-        'rejected': '#f44336'
-    }[request.status];
+  const statusColor = {
+    'pending': '#ff9800',
+    'accepted': '#4caf50',
+    'rejected': '#f44336'
+  }[request.status];
 
-    const statusText = {
-        'pending': 'PENDING',
-        'accepted': 'ACCEPTED',
-        'rejected': 'REJECTED'
-    }[request.status];
+  const statusText = {
+    'pending': 'PENDING',
+    'accepted': 'ACCEPTED',
+    'rejected': 'REJECTED'
+  }[request.status];
 
-    const cookedDate = request.cookedTime
-        ? new Date(request.cookedTime).toLocaleDateString()
-        : 'Unknown Date';
+  const cookedDate = request.cookedTime
+    ? new Date(request.cookedTime).toLocaleDateString()
+    : 'Unknown Date';
 
-    let actionButtons = '';
-    if (request.status === 'pending') {
-        actionButtons = `
+  let actionButtons = '';
+  if (request.status === 'pending') {
+    actionButtons = `
       <button class="btn-action btn-accept" onclick="handleRequestAction('${request.donationId}', '${request.userId}', 'accept')" title="Accept this claim">
         Accept
       </button>
@@ -206,13 +209,13 @@ function createRequestCard(request) {
         Reject
       </button>
     `;
-    } else {
-        actionButtons = `
+  } else {
+    actionButtons = `
       <button class="btn-action btn-details" onclick="viewRequestDetails('${encodeURIComponent(JSON.stringify(request))}')">View Details</button>
     `;
-    }
+  }
 
-    div.innerHTML = `
+  div.innerHTML = `
     <div class="request-card">
       <div class="request-header">
         <div class="food-info">
@@ -259,67 +262,67 @@ function createRequestCard(request) {
     </div>
   `;
 
-    return div;
+  return div;
 }
 
 // Update statistics cards
 function updateStatistics() {
-    const totalRequests = allRequests.length;
-    const pendingRequests = allRequests.filter(r => r.status === 'pending').length;
-    const acceptedRequests = allRequests.filter(r => r.status === 'accepted').length;
-    const rejectedRequests = allRequests.filter(r => r.status === 'rejected').length;
+  const totalRequests = allRequests.length;
+  const pendingRequests = allRequests.filter(r => r.status === 'pending').length;
+  const acceptedRequests = allRequests.filter(r => r.status === 'accepted').length;
+  const rejectedRequests = allRequests.filter(r => r.status === 'rejected').length;
 
-    document.getElementById('totalRequests').textContent = totalRequests;
-    document.getElementById('pendingRequests').textContent = pendingRequests;
-    document.getElementById('acceptedRequests').textContent = acceptedRequests;
-    document.getElementById('rejectedRequests').textContent = rejectedRequests;
+  document.getElementById('totalRequests').textContent = totalRequests;
+  document.getElementById('pendingRequests').textContent = pendingRequests;
+  document.getElementById('acceptedRequests').textContent = acceptedRequests;
+  document.getElementById('rejectedRequests').textContent = rejectedRequests;
 }
 
 // Handle accept/reject actions
 async function handleRequestAction(donationId, claimUserId, action) {
-    try {
-        const token = localStorage.getItem('token');
-        const endpoint = action === 'accept'
-            ? `http://localhost:5000/api/donations/${donationId}/claims/${claimUserId}/accept`
-            : `http://localhost:5000/api/donations/${donationId}/claims/${claimUserId}/reject`;
+  try {
+    const token = localStorage.getItem('token');
+    const endpoint = action === 'accept'
+      ? `http://localhost:5000/api/donations/${donationId}/claims/${claimUserId}/accept`
+      : `http://localhost:5000/api/donations/${donationId}/claims/${claimUserId}/reject`;
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || `Failed to ${action} claim`);
-        }
-
-        alert(`✅ Claim ${action}ed successfully!`);
-        await loadAllRequests();
-
-    } catch (error) {
-        console.error(`[ERROR] ${action}ing claim:`, error);
-        alert(`❌ Error: ${error.message}`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to ${action} claim`);
     }
+
+    alert(`✅ Claim ${action}ed successfully!`);
+    await loadAllRequests();
+
+  } catch (error) {
+    console.error(`[ERROR] ${action}ing claim:`, error);
+    alert(`❌ Error: ${error.message}`);
+  }
 }
 
 // View request details in modal
 function viewRequestDetails(encodedRequest) {
-    try {
-        const request = JSON.parse(decodeURIComponent(encodedRequest));
-        const modal = document.getElementById('requestDetailsModal');
-        const content = document.getElementById('requestDetailsContent');
-        const actionButtons = document.getElementById('actionButtons');
+  try {
+    const request = JSON.parse(decodeURIComponent(encodedRequest));
+    const modal = document.getElementById('requestDetailsModal');
+    const content = document.getElementById('requestDetailsContent');
+    const actionButtons = document.getElementById('actionButtons');
 
-        const cookedDate = request.cookedTime
-            ? new Date(request.cookedTime).toLocaleString()
-            : 'Unknown Date';
+    const cookedDate = request.cookedTime
+      ? new Date(request.cookedTime).toLocaleString()
+      : 'Unknown Date';
 
-        const claimedDate = new Date(request.claimedAt).toLocaleString();
+    const claimedDate = new Date(request.claimedAt).toLocaleString();
 
-        content.innerHTML = `
+    content.innerHTML = `
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
         <h3 style="margin: 0 0 15px 0; color: #333;">Donation Details</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 13px;">
@@ -369,9 +372,9 @@ function viewRequestDetails(encodedRequest) {
       </div>
     `;
 
-        // Set action buttons based on status
-        if (request.status === 'pending') {
-            actionButtons.innerHTML = `
+    // Set action buttons based on status
+    if (request.status === 'pending') {
+      actionButtons.innerHTML = `
         <button class="modal-accept" onclick="handleRequestAction('${request.donationId}', '${request.userId}', 'accept')">
           Accept Request
         </button>
@@ -382,32 +385,32 @@ function viewRequestDetails(encodedRequest) {
           Close
         </button>
       `;
-        } else {
-            actionButtons.innerHTML = `
+    } else {
+      actionButtons.innerHTML = `
         <button class="modal-close" style="flex: 1;" onclick="closeRequestModal()">
           Close
         </button>
       `;
-        }
-
-        modal.classList.remove('hidden');
-
-    } catch (error) {
-        console.error('[ERROR] Error parsing request:', error);
-        alert('Error loading request details');
     }
+
+    modal.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('[ERROR] Error parsing request:', error);
+    alert('Error loading request details');
+  }
 }
 
 // Close request details modal
 function closeRequestModal() {
-    const modal = document.getElementById('requestDetailsModal');
-    modal.classList.add('hidden');
+  const modal = document.getElementById('requestDetailsModal');
+  modal.classList.add('hidden');
 }
 
 // Close modal when clicking outside
 document.addEventListener('click', (e) => {
-    const modal = document.getElementById('requestDetailsModal');
-    if (e.target === modal) {
-        closeRequestModal();
-    }
+  const modal = document.getElementById('requestDetailsModal');
+  if (e.target === modal) {
+    closeRequestModal();
+  }
 });

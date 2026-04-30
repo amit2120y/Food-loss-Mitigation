@@ -342,7 +342,7 @@
 
                     try {
                         // Store coordinates for later use (distance calculation)
-                        window.currentCoordinates = { latitude, longitude };
+                        window.currentCoordinates = { latitude, longitude, accuracy };
 
                         // Initialize Leaflet map if not already done
                         if (!locationMap) {
@@ -388,13 +388,18 @@
                             const latLng = locationMarker.getLatLng();
                             window.currentCoordinates = {
                                 latitude: latLng.lat,
-                                longitude: latLng.lng
+                                longitude: latLng.lng,
+                                accuracy: 0
                             };
+                            try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: latLng.lat, longitude: latLng.lng, accuracy: 0, ts: Date.now() })); } catch (e) { }
                             updateLocationAddress(latLng.lat, latLng.lng);
                         });
 
                         // Update address on map
                         updateLocationAddress(latitude, longitude);
+
+                        // Cache location for quick reloads and background use
+                        try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude, longitude, accuracy: accuracy || 0, ts: Date.now() })); } catch (e) { }
 
                         // Show map
                         locationMapDiv.style.display = 'block';
@@ -613,6 +618,16 @@
                 console.log('Donation API Response:', data);
 
                 if (response.ok) {
+                    // Try to update local caches optimistically so pages reload faster
+                    try {
+                        const createdDonation = data.donation || data;
+                        const curUser = JSON.parse(localStorage.getItem('user') || '{}');
+                        const curUserId = curUser?.id || curUser?._id || curUser?.email || 'unknown';
+                        if (typeof updateDonationCachesAfterChange === 'function') {
+                            updateDonationCachesAfterChange(createdDonation, curUserId);
+                        }
+                    } catch (e) { console.warn('Failed to update caches after create', e); }
+
                     alert('Donation saved successfully!');
                     window.location.href = "dashboard.html";
                 } else {

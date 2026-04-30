@@ -9,26 +9,94 @@ let userCoordinates = null; // Store user's current coordinates for distance cal
 // Promise to wait for geolocation
 function getGeolocation() {
   return new Promise((resolve) => {
+    const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+    const LOW_OPTS = { enableHighAccuracy: false, timeout: 2500, maximumAge: 60 * 1000 };
+    const HIGH_OPTS = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+
+    // Prefer a recently cached location to avoid prompting the user repeatedly
+    try {
+      const cached = JSON.parse(localStorage.getItem('lastKnownLocation') || 'null');
+      if (cached && cached.ts && (Date.now() - cached.ts) < CACHE_TTL) {
+        userCoordinates = { latitude: cached.latitude, longitude: cached.longitude, accuracy: cached.accuracy || null };
+        console.log('✓ Using cached location:', userCoordinates);
+
+        // Start a non-blocking background refine to improve accuracy when available
+        if (navigator.geolocation) {
+          setTimeout(() => {
+            try {
+              navigator.geolocation.getCurrentPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const acc = pos.coords.accuracy;
+                const cachedAcc = cached.accuracy || Infinity;
+                if (acc && acc < cachedAcc - 5) {
+                  userCoordinates = { latitude: lat, longitude: lon, accuracy: acc };
+                  try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: lat, longitude: lon, accuracy: acc || 0, ts: Date.now() })); } catch (e) { }
+                  console.log('✓ Background refined location:', userCoordinates);
+                } else {
+                  console.log('Background refine returned no meaningful improvement (m):', acc);
+                }
+              }, (err) => { console.warn('Background refine failed', err); }, HIGH_OPTS);
+            } catch (e) { console.warn('Background refine exception', e); }
+          }, 0);
+        }
+
+        resolve(userCoordinates);
+        return;
+      }
+    } catch (e) {
+      // ignore parse errors and continue to request geolocation
+    }
+
     if (!navigator.geolocation) {
       console.warn('⚠️ Geolocation not supported');
       resolve(null);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        userCoordinates = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        };
-        console.log('✓ User location obtained:', userCoordinates);
+    // Helper to cache and set userCoordinates object
+    function cacheLocation(lat, lon, acc) {
+      userCoordinates = { latitude: lat, longitude: lon, accuracy: acc || null };
+      try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: lat, longitude: lon, accuracy: acc || 0, ts: Date.now() })); } catch (e) { }
+    }
+
+    // Try a quick low-accuracy attempt first so UI can proceed quickly,
+    // then attempt a high-accuracy refine in the background and update cache if better.
+    navigator.geolocation.getCurrentPosition((posLow) => {
+      cacheLocation(posLow.coords.latitude, posLow.coords.longitude, posLow.coords.accuracy);
+      console.log('✓ Quick location obtained:', userCoordinates);
+
+      // Start background refine (non-blocking)
+      try {
+        navigator.geolocation.getCurrentPosition((posRefine) => {
+          if (posRefine && posRefine.coords) {
+            const rlat = posRefine.coords.latitude;
+            const rlon = posRefine.coords.longitude;
+            const racc = posRefine.coords.accuracy;
+            if (!userCoordinates.accuracy || (racc && racc < userCoordinates.accuracy - 5)) {
+              cacheLocation(rlat, rlon, racc);
+              console.log('✓ Refined location obtained:', userCoordinates);
+            } else {
+              console.log('Refine did not improve accuracy:', racc);
+            }
+          }
+        }, (refErr) => { console.warn('High-accuracy refine failed', refErr); }, HIGH_OPTS);
+      } catch (e) { console.warn('Background refine exception', e); }
+
+      resolve(userCoordinates);
+    }, (lowErr) => {
+      console.warn('Quick geolocation failed', lowErr, 'trying high-accuracy directly...');
+
+      // Try high-accuracy directly if quick failed or was unavailable
+      navigator.geolocation.getCurrentPosition((posHigh) => {
+        cacheLocation(posHigh.coords.latitude, posHigh.coords.longitude, posHigh.coords.accuracy);
+        console.log('✓ High-accuracy location obtained:', userCoordinates);
         resolve(userCoordinates);
-      },
-      (error) => {
-        console.warn('⚠️ Could not get user location:', error.message);
-        resolve(null); // Still resolve, so page loads
-      }
-    );
+      }, (highErr) => {
+        console.warn('High-accuracy geolocation failed', highErr);
+        resolve(null); // give up, allow page to continue
+      }, HIGH_OPTS);
+    }, LOW_OPTS);
   });
 }
 
@@ -95,21 +163,30 @@ async function loadDonations() {
     emptyEl.classList.add('hidden');
 
     const startTime = performance.now();
+    const cacheKey = 'donations_available';
 
-    const response = await fetch('http://localhost:5000/api/donations/available', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch donations: ${response.status}`);
+    // Use cached data (stale-while-revalidate) to speed up UI; fetchJsonWithCache
+    // is provided by js/common-utils.js
+    let data;
+    try {
+      data = await fetchJsonWithCache('http://localhost:5000/api/donations/available', cacheKey, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }, { ttl: 60 * 1000, background: true });
+    } catch (err) {
+      console.warn('Network fetch failed for available donations, will fallback to cache if present', err);
+      const cached = cacheGet(cacheKey);
+      data = cached ? cached.v : null;
     }
 
-    const data = await response.json();
     const loadTime = performance.now() - startTime;
+
+    if (!data || !Array.isArray(data.donations)) {
+      throw new Error('Failed to fetch donations or invalid response');
+    }
 
     console.log(`✓ Fetched ${data.donations.length} available donations in ${loadTime.toFixed(2)}ms`);
     console.log('Sample donation:', data.donations[0]); // Debug: see what data looks like
@@ -806,7 +883,10 @@ document.addEventListener('submit', async (e) => {
     alert(`Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
     closeModal();
 
-    // Reload donations to update button status (non-blocking)
+    // Invalidate donation caches so reload pulls fresh data, then reload donations
+    try {
+      clearCachePrefix('donations_');
+    } catch (e) { console.warn('Failed to clear donation caches', e); }
     try {
       await loadDonations();
     } catch (reloadError) {

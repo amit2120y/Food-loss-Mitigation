@@ -54,6 +54,49 @@
             font-size: 16px;
         }
 
+        /* Render the main notification text without heavy bolding */
+        .notification-content h4 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 15px;
+            font-weight: 400;
+            /* normal weight */
+            line-height: 1.2;
+        }
+
+        /* Style the close ("x") button on notification cards */
+        .notification-close {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #333;
+            margin-left: 12px;
+            align-self: flex-start;
+            /* keep it aligned to the top */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        .notification-close:hover {
+            background: #fafafa;
+            border-color: #cfcfcf;
+        }
+
+        .notification-close i {
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .notification-close:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+        }
+
         .notification-content p {
             margin: 0;
             color: #666;

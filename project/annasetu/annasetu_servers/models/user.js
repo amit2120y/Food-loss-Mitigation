@@ -40,6 +40,8 @@ const userSchema = new mongoose.Schema({
     googleEmail: String,
     googleName: String,
     googleProfilePicture: String,
+    // Store refresh token so server can re-fetch Google profile when needed
+    googleRefreshToken: String,
 
     // Authentication method
     authMethod: {

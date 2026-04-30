@@ -4,26 +4,82 @@ let userCoordinates = null; // Store user's location for distance calculation
 // Promise to wait for geolocation
 function getGeolocation() {
   return new Promise((resolve) => {
+    const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+    const LOW_OPTS = { enableHighAccuracy: false, timeout: 2500, maximumAge: 60 * 1000 };
+    const HIGH_OPTS = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+
+    // Use cached location quickly if available
+    try {
+      const cached = JSON.parse(localStorage.getItem('lastKnownLocation') || 'null');
+      if (cached && cached.ts && (Date.now() - cached.ts) < CACHE_TTL) {
+        userCoordinates = { latitude: cached.latitude, longitude: cached.longitude, accuracy: cached.accuracy || null };
+        console.log('✓ Using cached location (dashboard):', userCoordinates);
+
+        // Background refine
+        if (navigator.geolocation) {
+          setTimeout(() => {
+            try {
+              navigator.geolocation.getCurrentPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const acc = pos.coords.accuracy;
+                const cachedAcc = cached.accuracy || Infinity;
+                if (acc && acc < cachedAcc - 5) {
+                  userCoordinates = { latitude: lat, longitude: lon, accuracy: acc };
+                  try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: lat, longitude: lon, accuracy: acc || 0, ts: Date.now() })); } catch (e) { }
+                  console.log('✓ Dashboard background refined location:', userCoordinates);
+                }
+              }, (err) => { console.warn('Dashboard background refine failed', err); }, HIGH_OPTS);
+            } catch (e) { console.warn('Dashboard background refine exception', e); }
+          }, 0);
+        }
+
+        resolve(userCoordinates);
+        return;
+      }
+    } catch (e) { /* ignore parse errors */ }
+
     if (!navigator.geolocation) {
       console.warn('⚠️ Geolocation not supported');
       resolve(null);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        userCoordinates = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        };
-        console.log('✓ User location obtained:', userCoordinates);
+    // Quick low-accuracy attempt then refine
+    navigator.geolocation.getCurrentPosition((posLow) => {
+      userCoordinates = { latitude: posLow.coords.latitude, longitude: posLow.coords.longitude, accuracy: posLow.coords.accuracy || null };
+      try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: posLow.coords.latitude, longitude: posLow.coords.longitude, accuracy: posLow.coords.accuracy || 0, ts: Date.now() })); } catch (e) { }
+      console.log('✓ Quick location obtained (dashboard):', userCoordinates);
+
+      // Background refine
+      try {
+        navigator.geolocation.getCurrentPosition((posRefine) => {
+          if (posRefine && posRefine.coords) {
+            const rlat = posRefine.coords.latitude;
+            const rlon = posRefine.coords.longitude;
+            const racc = posRefine.coords.accuracy;
+            if (!userCoordinates.accuracy || (racc && racc < userCoordinates.accuracy - 5)) {
+              userCoordinates = { latitude: rlat, longitude: rlon, accuracy: racc };
+              try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: rlat, longitude: rlon, accuracy: racc || 0, ts: Date.now() })); } catch (e) { }
+              console.log('✓ Refined location obtained (dashboard):', userCoordinates);
+            }
+          }
+        }, (refErr) => { console.warn('Dashboard refine failed', refErr); }, HIGH_OPTS);
+      } catch (e) { console.warn('Dashboard background refine exception', e); }
+
+      resolve(userCoordinates);
+    }, (lowErr) => {
+      console.warn('Dashboard quick geolocation failed', lowErr, 'trying high-accuracy directly...');
+      navigator.geolocation.getCurrentPosition((posHigh) => {
+        userCoordinates = { latitude: posHigh.coords.latitude, longitude: posHigh.coords.longitude, accuracy: posHigh.coords.accuracy || null };
+        try { localStorage.setItem('lastKnownLocation', JSON.stringify({ latitude: posHigh.coords.latitude, longitude: posHigh.coords.longitude, accuracy: posHigh.coords.accuracy || 0, ts: Date.now() })); } catch (e) { }
+        console.log('✓ High-accuracy location obtained (dashboard):', userCoordinates);
         resolve(userCoordinates);
-      },
-      (error) => {
-        console.warn('⚠️ Could not get user location:', error.message);
+      }, (highErr) => {
+        console.warn('High-accuracy geolocation failed (dashboard)', highErr);
         resolve(null);
-      }
-    );
+      }, HIGH_OPTS);
+    }, LOW_OPTS);
   });
 }
 
@@ -43,6 +99,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('user', JSON.stringify({ id: urlUserId, name: decodeURIComponent(urlUserName || ''), email: decodeURIComponent(urlUserEmail || '') }));
       window.history.replaceState({}, document.title, '/dashboard.html');
       console.log('Stored token from URL');
+      // Try to capture a quick device location (non-blocking) so subsequent pages don't wait
+      try {
+        if (navigator.geolocation) {
+          (async () => {
+            try {
+              const loc = await new Promise((resolve) => {
+                let done = false;
+                const timer = setTimeout(() => { if (!done) { done = true; resolve(null); } }, 900);
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  if (done) return;
+                  done = true;
+                  clearTimeout(timer);
+                  resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy || null, ts: Date.now() });
+                }, (err) => {
+                  if (done) return;
+                  done = true;
+                  clearTimeout(timer);
+                  resolve(null);
+                }, { enableHighAccuracy: false, timeout: 800, maximumAge: 60000 });
+              });
+              if (loc) {
+                try { localStorage.setItem('lastKnownLocation', JSON.stringify(loc)); } catch (e) { console.warn('Could not cache location', e); }
+                console.log('✔ Cached quick location from URL-login flow', loc);
+              }
+            } catch (e) { console.warn('Quick location capture failed', e); }
+          })();
+        }
+      } catch (errLoc) { console.warn('Location capture error', errLoc); }
     }
   } catch (err) {
     console.warn('URL token handling failed', err);
@@ -72,38 +156,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statsRes.ok) {
       const stats = await statsRes.json();
       const cards = document.querySelectorAll('.stats .card');
-      if (cards.length >= 2) {
-        cards[0].querySelector('h3').textContent = stats.user?.donationsMade ?? '0';
-        cards[1].querySelector('h3').textContent = stats.user?.donationsReceived ?? '0';
+      // Only set the donations count from the server stats if available.
+      // We avoid writing the second card here because the dashboard's second card
+      // is used for "Requests In" (claims on your donations) and is computed
+      // later from the loaded donations. Writing it here causes inconsistent
+      // values when local/cache-based counts are applied.
+      if (cards.length >= 1 && typeof stats.user?.donationsMade !== 'undefined') {
+        cards[0].querySelector('h3').textContent = String(stats.user.donationsMade);
       }
     }
   } catch (err) {
     console.warn('Failed to fetch stats', err);
   }
 
-  // Load donations with retry mechanism: prefer backend, fallback to localStorage
+  // Load donations with retry mechanism: prefer backend/cache, fallback to localStorage
   let donations = [];
   let retryCount = 0;
   const maxRetries = 8;
 
+  const currentUserId = user.id || user._id || user.email || 'unknown';
+
   const fetchDonationsWithRetry = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/donations/my-donations', { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const body = await res.json();
-        donations = body.donations || [];
+      const cacheKey = `donations_my_${currentUserId}`;
+      const body = await fetchJsonWithCache('http://localhost:5000/api/donations/my-donations', cacheKey, { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
+      donations = (body && body.donations) || [];
 
-        // If donations empty and we haven't retried too many times, retry after delay
-        if ((!donations || donations.length === 0) && retryCount < maxRetries) {
-          retryCount++;
-          const delayMs = Math.min(1000 + (retryCount * 1500), 10000); // Increase delay: 2.5s, 4s, 5.5s, etc.
-          console.log(`No donations found yet. Retrying in ${delayMs}ms (attempt ${retryCount}/${maxRetries})`);
-          await new Promise(r => setTimeout(r, delayMs));
-          return fetchDonationsWithRetry();
-        }
+      // If donations empty and we haven't retried too many times, retry after delay
+      if ((!donations || donations.length === 0) && retryCount < maxRetries) {
+        retryCount++;
+        const delayMs = Math.min(1000 + (retryCount * 1500), 10000); // Increase delay: 2.5s, 4s, 5.5s, etc.
+        console.log(`No donations found yet. Retrying in ${delayMs}ms (attempt ${retryCount}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, delayMs));
+        return fetchDonationsWithRetry();
       }
     } catch (err) {
-      console.warn('Backend donations unavailable, will fallback to localStorage');
+      console.warn('Backend donations unavailable or cache miss, will fallback to localStorage', err);
     }
 
     return donations;
@@ -114,13 +202,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Also load all available donations (others') to compute nearby/requests by others
   let availableDonations = [];
   try {
-    const res2 = await fetch('http://localhost:5000/api/donations/available', { headers: { Authorization: `Bearer ${token}` } });
-    if (res2.ok) {
-      const body2 = await res2.json();
-      availableDonations = body2.donations || [];
-    }
+    const body2 = await fetchJsonWithCache('http://localhost:5000/api/donations/available', 'donations_available', { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
+    availableDonations = (body2 && body2.donations) || [];
   } catch (err) {
-    console.warn('Backend available donations unavailable, will fallback to localStorage');
+    console.warn('Backend available donations unavailable, will fallback to localStorage', err);
   }
 
   if (!donations.length) {
@@ -237,7 +322,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 0);
     }
 
-    const nearby = Array.isArray(availableDonations) ? availableDonations.length : 0;
+    // Compute nearby donations within a configurable radius (km). If user
+    // location is not available, fall back to counting all available donations.
+    const NEARBY_RADIUS_KM = 10; // consider donations within 10 km as 'nearby'
+    let nearby = 0;
+    if (userCoordinates && Array.isArray(availableDonations)) {
+      nearby = availableDonations.reduce((count, d) => {
+        try {
+          if (!d || !d.coordinates) return count;
+          const lat2 = Number(d.coordinates.latitude);
+          const lon2 = Number(d.coordinates.longitude);
+          if (isNaN(lat2) || isNaN(lon2)) return count;
+          const distKm = calculateDistance(userCoordinates.latitude, userCoordinates.longitude, lat2, lon2);
+          return distKm <= NEARBY_RADIUS_KM ? count + 1 : count;
+        } catch (e) {
+          return count;
+        }
+      }, 0);
+    } else {
+      nearby = Array.isArray(availableDonations) ? availableDonations.length : 0;
+    }
 
     if (cards && cards.length >= 4) {
       // Map cards in order: Donations, Requests In, Requests Out, Nearby
@@ -325,6 +429,11 @@ document.addEventListener('submit', async (e) => {
 
     const returnedData = await response.json();
     console.log('[EDIT] Success response:', returnedData);
+
+    // Invalidate donation caches so pages show fresh data
+    try {
+      clearCachePrefix('donations_');
+    } catch (e) { console.warn('Failed to clear donation caches', e); }
 
     alert('✅ Donation updated successfully!');
     closeEditModal();

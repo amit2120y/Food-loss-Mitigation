@@ -1395,3 +1395,134 @@ exports.resendVerification = async (req, res) => {
         res.status(500).json({ message: 'Resend failed', error: error.message });
     }
 };
+
+// GET USER BY EMAIL (public profile for authenticated users)
+exports.getUserByEmail = async (req, res) => {
+    try {
+        // Require a valid token from the requester
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (jwtError) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        const requester = await User.findById(decoded.id);
+        if (!requester) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const email = (req.query.email || req.body.email || '').toString().trim();
+        if (!email) {
+            return res.status(400).json({ message: "Email query parameter is required: ?email=someone@example.com" });
+        }
+
+        // Case-insensitive exact match (escape regex special chars)
+        const escaped = email.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+        const found = await User.findOne({ email: new RegExp('^' + escaped + '$', 'i') });
+        if (!found) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Return only public fields to avoid leaking sensitive data
+        const publicUser = {
+            id: found._id,
+            name: found.name,
+            email: found.email,
+            phone: found.phone || null,
+            location: found.location || null,
+            profilePicture: found.googleProfilePicture || found.profileImage || null,
+            donationsMade: found.donationsMade || 0,
+            donationsReceived: found.donationsReceived || 0,
+            createdAt: found.createdAt
+        };
+
+        return res.status(200).json({ message: "User profile retrieved", user: publicUser });
+
+    } catch (error) {
+        console.error("Error fetching user by email:", error);
+        const dbError = handleDatabaseError(error);
+        if (dbError) return res.status(dbError.status).json({ message: dbError.message });
+        return res.status(500).json({ message: "Failed to fetch user", error: error.message });
+    }
+};
+
+
+// Re-sync Google profile using stored refresh token
+exports.resyncGoogleProfile = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (!user.googleRefreshToken) {
+            return res.status(400).json({ message: 'No Google refresh token stored for this account. Please re-authenticate with Google.' });
+        }
+
+        const { default: fetch } = await import('node-fetch');
+
+        // Exchange refresh token for a new access token
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: process.env.GOOGLE_CLIENT_ID,
+                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                grant_type: 'refresh_token',
+                refresh_token: user.googleRefreshToken
+            }).toString()
+        });
+
+        const tokenData = await tokenResponse.json();
+        if (!tokenResponse.ok || tokenData.error) {
+            console.error('Google token refresh failed:', tokenData);
+            return res.status(400).json({ message: 'Failed to refresh Google token', error: tokenData.error_description || tokenData.error });
+        }
+
+        const accessToken = tokenData.access_token;
+        // If Google returned a new refresh token, store it
+        if (tokenData.refresh_token) {
+            user.googleRefreshToken = tokenData.refresh_token;
+        }
+
+        // Fetch latest profile
+        const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const profile = await profileResponse.json();
+        if (!profile || profile.error) {
+            console.error('Failed fetching Google profile during resync:', profile);
+            return res.status(400).json({ message: 'Failed to fetch Google profile', error: profile.error });
+        }
+
+        // Update fields
+        if (profile.picture) user.googleProfilePicture = profile.picture;
+        if (profile.name) user.googleName = profile.name;
+        if (profile.email) user.googleEmail = profile.email;
+
+        await user.save();
+
+        return res.status(200).json({ message: 'Google profile re-synced', profilePicture: user.googleProfilePicture });
+
+    } catch (error) {
+        console.error('resyncGoogleProfile error:', error);
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+        res.status(500).json({ message: 'Failed to re-sync Google profile', error: error.message });
+    }
+};

@@ -74,14 +74,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Setup event listeners
     setupEventListeners();
-    // Reset badge when viewing notifications page
+
+    // When the user opens the Notifications page consider notifications as "seen"
+    // and clear the unseen counter so the badge hides. Persist to localStorage
+    // so other tabs/windows can observe the change.
+    try {
+      if (unseenNotificationCount > 0) {
+        unseenNotificationCount = 0;
+        localStorage.setItem('unseenNotifications', '0');
+        updateNotificationBadge();
+      }
+    } catch (e) { console.warn('Failed to clear unseenNotifications', e); }
+
+    // Reset badge when clicking the bell link (defensive). Persist change.
     const bellLink = document.getElementById('notificationBellLink');
     if (bellLink) {
       bellLink.addEventListener('click', () => {
-        unseenNotificationCount = 0;
+        try {
+          unseenNotificationCount = 0;
+          localStorage.setItem('unseenNotifications', '0');
+        } catch (e) { console.warn('Failed to clear unseenNotifications on click', e); }
         updateNotificationBadge();
       });
     }
+
+    // Keep the badge in sync across browser tabs/windows when localStorage changes
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'unseenNotifications') {
+        unseenNotificationCount = parseInt(e.newValue || '0', 10) || 0;
+        updateNotificationBadge();
+      }
+    });
 
     // Setup listeners for real-time notifications (global socket)
     setupSocketNotifications();
@@ -120,6 +143,12 @@ document.addEventListener('visibilitychange', () => {
   if (isPageInitialized) {
     console.log('Refreshing notifications...');
     loadNotifications();
+    // Mark notifications as seen when the page becomes visible
+    try {
+      localStorage.setItem('unseenNotifications', '0');
+      unseenNotificationCount = 0;
+      updateNotificationBadge();
+    } catch (e) { console.warn('Failed to clear unseenNotifications on visibilitychange', e); }
   }
 });
 
@@ -199,15 +228,15 @@ function displayNotifications() {
       return;
     }
 
-    // Render notifications
     const notificationsList = notifications.map(notif => `
       <div class="notification-item">
         <div class="notification-icon">
           <i class="fas ${notif.icon || 'fa-bell'}"></i>
         </div>
         <div class="notification-content">
-          <h4>${notif.title || 'Notification'}</h4>
-          <p>${notif.message || ''}</p>
+          ${(notif.title && notif.title !== 'Notification')
+        ? `<h4>${notif.title}</h4><p>${notif.message || ''}</p>`
+        : `<h4>${notif.message || ''}</h4>`}
           <span class="notification-time">${formatTime(notif.timestamp)}</span>
         </div>
         <button class="notification-close" onclick="closeNotification(this)">

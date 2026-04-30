@@ -40,19 +40,30 @@ async function loadMyDonations() {
         containerEl.innerHTML = '';
         emptyEl.style.display = 'none';
 
-        const response = await fetch('http://localhost:5000/api/donations/my-donations', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch donations: ${response.status}`);
+        const userObj = JSON.parse(localStorage.getItem('user') || 'null');
+        const currentUserId = userObj?.id || userObj?._id || userObj?.email || 'unknown';
+        const cacheKey = `donations_my_${currentUserId}`;
+
+        let data;
+        try {
+            data = await fetchJsonWithCache('http://localhost:5000/api/donations/my-donations', cacheKey, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }, { ttl: 60 * 1000, background: true });
+        } catch (err) {
+            console.warn('Failed to fetch my-donations from network, falling back to cache if available', err);
+            const cached = cacheGet(cacheKey);
+            data = cached ? cached.v : null;
         }
 
-        const data = await response.json();
+        if (!data || !Array.isArray(data.donations)) {
+            throw new Error('Failed to fetch donations or invalid response');
+        }
+
         allDonations = data.donations || [];
 
         console.log(`✓ Loaded ${allDonations.length} donations`);
@@ -306,6 +317,8 @@ async function handleEditSubmit(e) {
 
         if (response.ok) {
             console.log('✓ Donation updated successfully');
+            // Invalidate donation caches so reload pulls fresh data
+            try { clearCachePrefix('donations_'); } catch (e) { console.warn('Failed to clear donation caches', e); }
             alert('✅ Donation updated successfully!');
             closeEditModal();
             await loadMyDonations();
@@ -339,6 +352,7 @@ async function deleteDonation(donationId) {
 
         if (response.ok) {
             console.log('✓ Donation deleted');
+            try { clearCachePrefix('donations_'); } catch (e) { console.warn('Failed to clear donation caches', e); }
             alert('✅ Donation deleted successfully!');
             await loadMyDonations();
         } else {
@@ -418,6 +432,7 @@ async function acceptClaim(donationId, userId) {
 
         if (response.ok) {
             console.log('✓ Claim accepted');
+            try { clearCachePrefix('donations_'); } catch (e) { console.warn('Failed to clear donation caches', e); }
             alert('✅ Claim accepted! User has been notified.');
             closeClaimsModal();
             await loadMyDonations();
@@ -449,6 +464,7 @@ async function rejectClaim(donationId, userId) {
 
         if (response.ok) {
             console.log('✓ Claim rejected');
+            try { clearCachePrefix('donations_'); } catch (e) { console.warn('Failed to clear donation caches', e); }
             alert('✅ Claim rejected.');
             closeClaimsModal();
             await loadMyDonations();

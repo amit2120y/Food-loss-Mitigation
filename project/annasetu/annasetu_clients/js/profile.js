@@ -94,12 +94,32 @@ async function loadProfileData() {
 
     console.log('✓ Profile data loaded successfully');
 
-    // In future, you can fetch from backend:
-    // const response = await fetch('http://localhost:5000/api/users/profile', {
-    //   headers: { 'Authorization': `Bearer ${token}` }
-    // });
-    // const data = await response.json();
-    // displayProfileData(data.user);
+    // Also try to fetch fresh profile data from backend (to get profilePicture)
+    try {
+      const resp = await fetch('http://localhost:5000/api/auth/user-stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (resp.ok) {
+        const body = await resp.json();
+        const serverUser = body.user;
+        if (serverUser) {
+          // Prefer server-provided profilePicture when available
+          const profileImgEl = document.getElementById('profileImage');
+          const defaultAvatar = 'images/default-avatar.svg';
+          if (serverUser.profilePicture && profileImgEl) {
+            profileImgEl.src = serverUser.profilePicture;
+            profileImgEl.onerror = () => { profileImgEl.onerror = null; profileImgEl.src = defaultAvatar; };
+          }
+          // Merge server-provided fields into currentUser and persist
+          currentUser = { ...currentUser, ...serverUser };
+          try { localStorage.setItem('user', JSON.stringify(currentUser)); } catch (e) { }
+          // Re-display with any updated fields
+          displayProfileData(currentUser);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch fresh profile from server:', err);
+    }
 
   } catch (error) {
     console.error('Error loading profile data:', error);
@@ -139,10 +159,17 @@ function displayProfileData(user) {
       }
     }
 
-    // Update profile picture
+    // Update profile picture (use Google picture, then stored profileImage, then local default)
     const profileImg = document.getElementById('profileImage');
-    if (profileImg && user.googleProfilePicture) {
-      profileImg.src = user.googleProfilePicture;
+    const defaultAvatar = 'images/default-avatar.svg';
+    if (profileImg) {
+      const candidate = user.profilePicture || user.googleProfilePicture || user.profileImage || defaultAvatar;
+      profileImg.src = candidate;
+      // If the image fails to load (CORS, broken URL), fall back to default
+      profileImg.onerror = () => {
+        profileImg.onerror = null;
+        profileImg.src = defaultAvatar;
+      };
     }
 
     // Update stats
@@ -399,3 +426,22 @@ function logout() {
   console.log('User logged out');
   window.location.href = 'login.html';
 }
+
+// Debug helper: fetch public profile by email
+async function fetchProfileByEmail(email) {
+  if (!email) throw new Error('Email is required');
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('Not authenticated');
+  const resp = await fetch(`http://localhost:5000/api/auth/users/by-email?email=${encodeURIComponent(email)}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.message || 'Failed to fetch profile');
+  return data.user;
+}
+// Expose helper for quick console testing
+window.fetchProfileByEmail = fetchProfileByEmail;

@@ -38,6 +38,13 @@ passport.use(
         let user = await User.findOne({ googleId: profile.id });
 
         if (user) {
+          // Update refresh token and profile picture when available
+          const update = {};
+          if (refreshToken) update.googleRefreshToken = refreshToken;
+          if (profile.photos && profile.photos[0] && profile.photos[0].value) update.googleProfilePicture = profile.photos[0].value;
+          if (Object.keys(update).length) {
+            user = await User.findByIdAndUpdate(user._id, update, { new: true });
+          }
           return done(null, user);
         }
 
@@ -53,6 +60,7 @@ passport.use(
               googleName: profile.displayName,
               googleEmail: profile.emails[0].value,
               googleProfilePicture: profile.photos[0]?.value,
+              googleRefreshToken: refreshToken || user.googleRefreshToken,
               authMethod: 'google'
             },
             { new: true }
@@ -66,6 +74,7 @@ passport.use(
             googleName: profile.displayName,
             googleEmail: profile.emails[0].value,
             googleProfilePicture: profile.photos[0]?.value,
+            googleRefreshToken: refreshToken || undefined,
             authMethod: 'google'
           });
         }

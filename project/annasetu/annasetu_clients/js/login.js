@@ -118,6 +118,34 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.removeItem("donations");
           }
 
+          // Try to capture a quick device location and cache it (won't block long)
+          try {
+            // Wait up to 900ms to reduce perceived delay; many devices respond fast
+            const locationPromise = new Promise((resolve) => {
+              if (!navigator.geolocation) return resolve(null);
+              let finished = false;
+              const timer = setTimeout(() => { if (!finished) { finished = true; resolve(null); } }, 900);
+              navigator.geolocation.getCurrentPosition((pos) => {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy || null, ts: Date.now() });
+              }, (err) => {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                resolve(null);
+              }, { enableHighAccuracy: false, timeout: 800, maximumAge: 60000 });
+            });
+
+            const quickLoc = await locationPromise;
+            if (quickLoc) {
+              try { localStorage.setItem('lastKnownLocation', JSON.stringify(quickLoc)); } catch (e) { console.warn('Could not cache location', e); }
+            }
+          } catch (e) {
+            console.warn('Location capture failed at login:', e);
+          }
+
           alert("Login successful! Redirecting to dashboard...");
           window.location.href = "dashboard.html";
         } else {

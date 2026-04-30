@@ -36,12 +36,140 @@ function performLogout() {
     localStorage.removeItem('user');
     localStorage.removeItem('donations');
     localStorage.removeItem('requests');
+    // Clear donation-related caches
+    clearCachePrefix('donations_');
 
     // Can add confirmation if desired
     console.log('✓ User logged out successfully');
 
     // Redirect to login/home page
     window.location.href = 'index.html';
+}
+
+/* -------------------- Simple localStorage cache helpers -------------------- */
+
+function cacheGet(key) {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch (e) {
+        console.warn('cacheGet parse error', e);
+        return null;
+    }
+}
+
+function cacheSet(key, value) {
+    try {
+        const payload = { ts: Date.now(), v: value };
+        localStorage.setItem(key, JSON.stringify(payload));
+    } catch (e) {
+        console.warn('cacheSet failed', e);
+    }
+}
+
+function cacheDelete(key) {
+    try { localStorage.removeItem(key); } catch (e) { console.warn('cacheDelete failed', e); }
+}
+
+function clearCachePrefix(prefix) {
+    try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(prefix)) {
+                localStorage.removeItem(k);
+            }
+        }
+    } catch (e) {
+        console.warn('clearCachePrefix failed', e);
+    }
+}
+
+/**
+ * Fetch JSON with a simple stale-while-revalidate cache.
+ * - Returns cached value immediately if fresh (within ttl).
+ * - If cached but stale, returns cached value and refreshes in background.
+ * - If no cache, waits for network response and caches it.
+ * fetchOptions are passed to window.fetch
+ */
+async function fetchJsonWithCache(url, cacheKey, fetchOptions = {}, opts = {}) {
+    const ttl = (opts && opts.ttl) || 60 * 1000; // default 60s
+    const background = opts.background !== false;
+
+    // Only cache GET requests
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    if (method !== 'GET') {
+        // Non-GET: do network call and return parsed JSON (no caching)
+        const res = await fetch(url, fetchOptions);
+        if (!res.ok) throw new Error('Network request failed: ' + res.status);
+        return await res.json();
+    }
+
+    const cached = cacheGet(cacheKey);
+    const now = Date.now();
+    if (cached && (now - (cached.ts || 0) < ttl)) {
+        return cached.v; // fresh
+    }
+
+    if (cached && background) {
+        // return stale and refresh in background
+        (async () => {
+            try {
+                const res = await fetch(url, fetchOptions);
+                if (!res.ok) return;
+                const json = await res.json();
+                cacheSet(cacheKey, json);
+                console.log('✓ Background cache refresh:', cacheKey);
+            } catch (e) {
+                console.warn('Background refresh failed for', cacheKey, e);
+            }
+        })();
+        return cached.v;
+    }
+
+    // No cache: fetch and wait
+    try {
+        const res = await fetch(url, fetchOptions);
+        if (!res.ok) throw new Error('Network request failed: ' + res.status);
+        const json = await res.json();
+        cacheSet(cacheKey, json);
+        return json;
+    } catch (err) {
+        console.warn('fetchJsonWithCache network failure', err);
+        // If we had a stale cache, return it as a fallback
+        if (cached) return cached.v;
+        throw err;
+    }
+}
+
+/**
+ * Update donation-related caches after creating/updating a donation.
+ * Appends/prepends the supplied donation object to available + user caches when present.
+ */
+function updateDonationCachesAfterChange(donation, userId) {
+    try {
+        // Update user's cache
+        const myKey = `donations_my_${userId}`;
+        const myCached = cacheGet(myKey);
+        if (myCached && Array.isArray(myCached.v.donations)) {
+            const newArr = [donation].concat(myCached.v.donations);
+            cacheSet(myKey, { donations: newArr });
+        } else {
+            cacheSet(myKey, { donations: [donation] });
+        }
+
+        // Update available cache
+        const availKey = 'donations_available';
+        const availCached = cacheGet(availKey);
+        if (availCached && Array.isArray(availCached.v.donations)) {
+            const newArr = [donation].concat(availCached.v.donations);
+            cacheSet(availKey, { donations: newArr });
+        } else {
+            cacheSet(availKey, { donations: [donation] });
+        }
+    } catch (e) {
+        console.warn('updateDonationCachesAfterChange failed', e);
+    }
 }
 
 /**
@@ -168,4 +296,20 @@ function setupGlobalSocket() {
         console.error('Failed to setup global socket', err);
     }
 }
+
+// Keep notification badge in sync across tabs/windows when unseenNotifications changes
+window.addEventListener('storage', (e) => {
+    if (e.key === 'unseenNotifications') {
+        try {
+            const badge = document.getElementById('notificationBadge');
+            const count = parseInt(e.newValue || '0', 10) || 0;
+            if (badge) {
+                badge.textContent = String(count);
+                badge.style.display = count > 0 ? 'inline-block' : 'none';
+            }
+        } catch (err) {
+            console.warn('Failed to update notification badge from storage event', err);
+        }
+    }
+});
 

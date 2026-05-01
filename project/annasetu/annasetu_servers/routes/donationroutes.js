@@ -13,6 +13,7 @@ const {
   rejectClaim,
   getUserClaims,
   completeDonationAndRate,
+  confirmDelivery,
   editDonation,
   debugClearAllDonations,
   debugGetAllDonationsWithUsers
@@ -52,6 +53,9 @@ router.delete("/:donationId/claim", unclaimDonation);
 // Accept/Reject claims (donor only)
 router.post("/:donationId/claims/:claimUserId/accept", acceptClaim);
 router.post("/:donationId/claims/:claimUserId/reject", rejectClaim);
+
+// Confirm delivery by claimant
+router.post('/:donationId/confirm-delivery', confirmDelivery);
 
 // Get user's claims
 router.get("/user/my-claims", getUserClaims);

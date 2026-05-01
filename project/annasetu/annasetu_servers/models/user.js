@@ -30,6 +30,9 @@ const userSchema = new mongoose.Schema({
 
     verificationToken: String,
     verificationTokenExpires: Date,
+    // Password reset fields
+    passwordResetToken: String,
+    passwordResetExpires: Date,
     // Google OAuth fields
     googleId: {
         type: String,
@@ -50,6 +53,12 @@ const userSchema = new mongoose.Schema({
         default: 'email'
     },
 
+    // Email notification preference
+    emailNotifications: {
+        type: Boolean,
+        default: true
+    },
+
     // Donation tracking
     donationsMade: {
         type: Number,
@@ -57,6 +66,17 @@ const userSchema = new mongoose.Schema({
     },
 
     donationsReceived: {
+        type: Number,
+        default: 0
+    },
+
+    // Aggregate rating fields
+    averageRating: {
+        type: Number,
+        default: 0
+    },
+
+    ratingCount: {
         type: Number,
         default: 0
     },

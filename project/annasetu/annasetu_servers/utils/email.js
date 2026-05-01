@@ -46,4 +46,50 @@ async function sendVerificationEmail({ to, name, token }) {
     }
 }
 
-module.exports = { sendVerificationEmail, transporter };
+async function sendPasswordResetEmail({ to, name, token }) {
+    const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const resetUrl = `${frontendUrl}/reset-password.html?token=${encodeURIComponent(token)}`;
+
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to,
+        subject: 'AnnaSetu Password Reset',
+        html: `
+      <p>Hi ${name || ''},</p>
+      <p>We received a request to reset your password. Click the link below to set a new password:</p>
+      <p><a href="${resetUrl}">Reset your password</a></p>
+      <p>This link will expire in 1 hour. If you did not request a password reset, please ignore this email.</p>
+    `
+    };
+
+    console.log(`Sending password reset email to ${to}`);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Password reset email sent:', info.messageId || info.response || info);
+        return info;
+    } catch (err) {
+        console.error('Error sending password reset email:', err);
+        throw err;
+    }
+}
+
+async function sendNotificationEmail({ to, subject, html }) {
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to,
+        subject: subject || 'Notification from AnnaSetu',
+        html: html || '<p>You have a new notification on AnnaSetu</p>'
+    };
+
+    console.log(`Sending notification email to ${to}`);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Notification email sent:', info.messageId || info.response || info);
+        return info;
+    } catch (err) {
+        console.error('Error sending notification email:', err);
+        throw err;
+    }
+}
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendNotificationEmail, transporter };

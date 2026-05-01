@@ -543,6 +543,20 @@ exports.claimDonation = async (req, res) => {
         addedBy: user._id,
         recipient: donorId
       });
+      // Send email to donor if they have email notifications enabled
+      try {
+        const { sendNotificationEmail } = require('../utils/email');
+        const donor = await require('../models/user').findById(donorId).select('email emailNotifications name');
+        if (donor && donor.email && donor.emailNotifications) {
+          const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+          const link = `${frontendUrl}/profile.html`;
+          const subject = 'Your food has a new claim on AnnaSetu';
+          const html = `<p>Hi ${donor.name || ''},</p><p>${notifMsg}.</p><p><a href="${link}">View details</a></p>`;
+          sendNotificationEmail({ to: donor.email, subject, html }).catch(err => console.error('Email send failed:', err));
+        }
+      } catch (emailErr) {
+        console.error('Failed to send claim notification email:', emailErr);
+      }
       if (io) {
         io.sockets.sockets.forEach((socket) => {
           let socketUserId = null;
@@ -734,6 +748,34 @@ exports.acceptClaim = async (req, res) => {
 
     console.log(`✓ Claim accepted by ${user.email} for user ${claimUserId}`);
 
+    // Notify the claimant by creating a Notification and sending email if enabled
+    try {
+      const Notification = require('../models/notification');
+      const notifMsg = `${user.name || user.email} accepted your claim for: ${donation.food}`;
+      const notification = await Notification.create({
+        message: notifMsg,
+        foodId: donation._id,
+        addedBy: user._id,
+        recipient: claimUserId
+      });
+
+      try {
+        const { sendNotificationEmail } = require('../utils/email');
+        const claimant = await require('../models/user').findById(claimUserId).select('email emailNotifications name');
+        if (claimant && claimant.email && claimant.emailNotifications) {
+          const frontendUrl = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+          const link = `${frontendUrl}/profile.html`;
+          const subject = 'Your claim was accepted on AnnaSetu';
+          const html = `<p>Hi ${claimant.name || ''},</p><p>${notifMsg}.</p><p><a href="${link}">View details</a></p>`;
+          sendNotificationEmail({ to: claimant.email, subject, html }).catch(err => console.error('Email send failed:', err));
+        }
+      } catch (emailErr) {
+        console.error('Failed to send acceptance notification email:', emailErr);
+      }
+    } catch (notifyErr) {
+      console.error('Error creating acceptance notification:', notifyErr);
+    }
+
     res.status(200).json({
       message: "Claim accepted successfully",
       donation: donation
@@ -875,10 +917,17 @@ exports.completeDonationAndRate = async (req, res) => {
     }
 
     const { donationId } = req.params;
-    const { rating, review } = req.body;
+    let { rating, review } = req.body;
+
+    // Accept either: { rating: 5, review: '...' } OR { rating: { score:5, review:'...' } }
+    if (rating && typeof rating === 'object' && 'score' in rating) {
+      review = review || rating.review || '';
+      rating = rating.score;
+    }
 
     // Validate rating
-    if (!rating || rating < 1 || rating > 5) {
+    const ratingNum = Number(rating);
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
       return res.status(400).json({ message: "Rating must be between 1 and 5" });
     }
 
@@ -887,14 +936,17 @@ exports.completeDonationAndRate = async (req, res) => {
       return res.status(404).json({ message: "Donation not found" });
     }
 
-    // Verify user claimed this donation
-    if (!donation.claimedBy || donation.claimedBy.toString() !== user._id.toString()) {
+    // Verify user claimed this donation (allow accepted claim even when donation.claimedBy not set)
+    const isClaimant = String(donation.claimedBy) === String(user._id) || donation.claims.some(c => String(c.userId) === String(user._id));
+    if (!isClaimant) {
       return res.status(403).json({ message: "Not authorized to rate this donation" });
     }
 
-    // Add rating
+    // Add rating (use numeric value) and optional quality fields
     donation.rating = {
-      score: rating,
+      score: ratingNum,
+      foodQuality: (req.body.rating && req.body.rating.foodQuality) || req.body.foodQuality || '',
+      packagingQuality: (req.body.rating && req.body.rating.packagingQuality) || req.body.packagingQuality || '',
       review: review || "",
       ratedBy: user._id,
       ratedAt: new Date()
@@ -902,10 +954,48 @@ exports.completeDonationAndRate = async (req, res) => {
 
     donation.isCompleted = true;
     donation.status = "Completed";
-
+    // mark review submitted and save
+    donation.reviewSubmitted = true;
     await donation.save();
 
-    console.log(`✓ Donation ${donationId} completed and rated ${rating}/5 by ${user.email}`);
+    // Update donor aggregate rating
+    try {
+      const donor = await User.findById(donation.userId);
+      if (donor) {
+        const oldAvg = donor.averageRating || 0;
+        const oldCount = donor.ratingCount || 0;
+        const newCount = oldCount + 1;
+        const newAvg = ((oldAvg * oldCount) + ratingNum) / newCount;
+        donor.averageRating = newAvg;
+        donor.ratingCount = newCount;
+        await donor.save();
+
+        // Emit socket event to donor if connected
+        try {
+          const io = req.app.get('io');
+          if (io) {
+            io.sockets.sockets.forEach((socket) => {
+              let socketUserId = null;
+              if (socket.handshake.auth && socket.handshake.auth.token) {
+                try {
+                  const decodedSocket = jwt.verify(socket.handshake.auth.token, process.env.JWT_SECRET);
+                  socketUserId = String(decodedSocket.id);
+                } catch (e) { }
+              }
+              if (socketUserId && socketUserId === String(donor._id)) {
+                socket.emit('review_submitted', { donationId: donation._id, rating });
+              }
+            });
+          }
+        } catch (ioErr) {
+          console.error('Failed to emit review_submitted socket event:', ioErr);
+        }
+      }
+    } catch (ratingErr) {
+      console.error('Failed to update donor rating:', ratingErr);
+    }
+
+    console.log(`✓ Donation ${donationId} completed and rated ${ratingNum}/5 by ${user.email}`);
 
     res.status(200).json({
       message: "Donation completed and rated successfully",
@@ -915,6 +1005,73 @@ exports.completeDonationAndRate = async (req, res) => {
   } catch (error) {
     console.error("Error completing donation:", error);
     res.status(500).json({ message: "Failed to complete donation", error: error.message });
+  }
+};
+
+// Confirm delivery (called by the claimant/requester)
+exports.confirmDelivery = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const { donationId } = req.params;
+    const donation = await Donation.findById(donationId);
+    if (!donation) return res.status(404).json({ message: 'Donation not found' });
+
+    // Verify that the requester is the claimant for this donation
+    const isClaimant = String(donation.claimedBy) === String(user._id) || donation.claims.some(c => String(c.userId) === String(user._id));
+    if (!isClaimant) {
+      return res.status(403).json({ message: 'Not authorized to confirm delivery for this donation' });
+    }
+
+    // Only allow confirming if donation was claimed
+    if (donation.status !== 'Claimed' && donation.status !== 'Available' && donation.status !== 'Completed') {
+      // allow transition from Claimed to Completed; also be tolerant
+    }
+
+    donation.status = 'Completed';
+    donation.deliveredAt = new Date();
+    await donation.save();
+
+    // Notify donor via socket
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const donorId = String(donation.userId);
+        io.sockets.sockets.forEach((socket) => {
+          let socketUserId = null;
+          if (socket.handshake.auth && socket.handshake.auth.token) {
+            try {
+              const decodedSocket = jwt.verify(socket.handshake.auth.token, process.env.JWT_SECRET);
+              socketUserId = String(decodedSocket.id);
+            } catch (e) { }
+          }
+          if (socketUserId && socketUserId === donorId) {
+            socket.emit('delivery_confirmed', { donationId: donation._id, deliveredAt: donation.deliveredAt });
+          }
+        });
+      }
+    } catch (ioErr) {
+      console.error('Failed to emit delivery_confirmed socket event:', ioErr);
+    }
+
+    return res.status(200).json({ message: 'Delivery confirmed', donation });
+  } catch (error) {
+    console.error('confirmDelivery error:', error);
+    return res.status(500).json({ message: 'Failed to confirm delivery', error: error.message });
   }
 };
 

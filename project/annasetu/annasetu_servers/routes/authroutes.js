@@ -9,12 +9,16 @@ const {
   getGoogleLoginSuccess,
   getUserStats,
   resyncGoogleProfile,
+  forgotPassword,
+  resetPassword,
   getUserByEmail,
   resendVerification,
   verifyEmail,
   analyzeFoodWithAI,
   updateProfile,
-  changePassword
+  changePassword,
+  updatePreferences,
+  deleteAccount
 } = require("../controllers/authcontrollers");
 
 router.post("/register", registerUser);
@@ -271,12 +275,19 @@ async function handleGoogleOAuthCode(code, res) {
 
 router.get("/google/login-success", getGoogleLoginSuccess);
 router.post("/google/resync", resyncGoogleProfile);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.get("/user-stats", getUserStats);
 router.post("/analyze-food", analyzeFoodWithAI);
+
+// Update user preferences (email notifications toggle)
+router.put('/users/preferences', updatePreferences);
 
 // User endpoints
 router.get("/users/by-email", getUserByEmail);
 router.put("/users/profile", updateProfile);
 router.post("/users/change-password", changePassword);
+// Delete account (authenticated user)
+router.delete('/users', deleteAccount);
 
 module.exports = router;

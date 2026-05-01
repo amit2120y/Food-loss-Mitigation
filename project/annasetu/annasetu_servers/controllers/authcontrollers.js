@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const crypto = require('crypto');
-const { sendVerificationEmail } = require('../utils/email');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
 
 // Helper function to detect and handle MongoDB network errors
 function handleDatabaseError(error) {
@@ -269,6 +269,7 @@ exports.getUserStats = async (req, res) => {
                 email: user.email,
                 phone: user.phone,
                 profilePicture: user.googleProfilePicture || null,
+                emailNotifications: user.emailNotifications || false,
                 donationsMade: user.donationsMade || 0,
                 donationsReceived: user.donationsReceived || 0,
                 createdAt: user.createdAt
@@ -1253,7 +1254,6 @@ exports.updateProfile = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-
         // Get fields to update
         const { name, phone, location } = req.body;
 
@@ -1320,6 +1320,10 @@ exports.changePassword = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // If user signed up with Google (no local password), disallow direct password change
+        if (user.authMethod !== 'email' || !user.password) {
+            return res.status(400).json({ message: "Password change is not available for accounts created via Google OAuth. Please use password reset or sign in with email/password." });
+        }
         // Get passwords from request body
         const { currentPassword, newPassword } = req.body;
 
@@ -1524,5 +1528,135 @@ exports.resyncGoogleProfile = async (req, res) => {
             return res.status(401).json({ message: 'Invalid token' });
         }
         res.status(500).json({ message: 'Failed to re-sync Google profile', error: error.message });
+    }
+};
+
+
+// FORGOT PASSWORD - request reset link
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Generate reset token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        user.passwordResetToken = resetToken;
+        // Expires in 1 hour
+        user.passwordResetExpires = Date.now() + 60 * 60 * 1000;
+        await user.save();
+
+        // Send email (best-effort)
+        try {
+            await sendPasswordResetEmail({ to: user.email, name: user.name, token: resetToken });
+        } catch (emailErr) {
+            console.error('Failed to send password reset email:', emailErr);
+            // Continue - do not reveal email sending failure to client
+        }
+
+        return res.status(200).json({ message: 'If that email is registered, a password reset link has been sent.' });
+    } catch (error) {
+        console.error('forgotPassword error:', error);
+        res.status(500).json({ message: 'Failed to process request', error: error.message });
+    }
+};
+
+
+// RESET PASSWORD - apply new password using token
+exports.resetPassword = async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+        if (!token || !newPassword) return res.status(400).json({ message: 'Token and newPassword are required' });
+
+        const user = await User.findOne({ passwordResetToken: token, passwordResetExpires: { $gt: Date.now() } });
+        if (!user) return res.status(400).json({ message: 'Invalid or expired reset token' });
+
+        if (newPassword.length < 6) return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+
+        const hashed = await bcrypt.hash(newPassword, 10);
+        user.password = hashed;
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        // Ensure authMethod is email now
+        user.authMethod = 'email';
+        await user.save();
+
+        return res.status(200).json({ message: 'Password has been reset successfully' });
+    } catch (error) {
+        console.error('resetPassword error:', error);
+        res.status(500).json({ message: 'Failed to reset password', error: error.message });
+    }
+};
+
+// Update user preferences (email notifications, etc.)
+exports.updatePreferences = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const { emailNotifications } = req.body;
+        if (typeof emailNotifications === 'boolean') {
+            user.emailNotifications = emailNotifications;
+        }
+
+        await user.save();
+        return res.status(200).json({ message: 'Preferences updated', user: { id: user._id, emailNotifications: user.emailNotifications } });
+    } catch (error) {
+        console.error('updatePreferences error:', error);
+        res.status(500).json({ message: 'Failed to update preferences', error: error.message });
+    }
+};
+
+// Delete authenticated user's account and related data
+exports.deleteAccount = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Remove donations created by this user
+        const Donation = require('../models/donation');
+        const Notification = require('../models/notification');
+
+        await Donation.deleteMany({ userId: user._id });
+
+        // Remove claims made by this user on other donations
+        await Donation.updateMany(
+            { 'claims.userId': user._id },
+            { $pull: { claims: { userId: user._id } } }
+        );
+
+        // If the user was set as claimedBy on any donation, release it
+        await Donation.updateMany(
+            { claimedBy: user._id },
+            { $set: { claimedBy: null, status: 'Available' } }
+        );
+
+        // Remove notifications created by or targeted at this user
+        await Notification.deleteMany({ $or: [{ addedBy: user._id }, { recipient: user._id }] });
+
+        // Finally remove user record
+        await User.findByIdAndDelete(user._id);
+
+        console.log(`✓ User ${user.email} and related data deleted`);
+        return res.status(200).json({ message: 'Account deleted successfully' });
+    } catch (error) {
+        console.error('deleteAccount error:', error);
+        return res.status(500).json({ message: 'Failed to delete account', error: error.message });
     }
 };

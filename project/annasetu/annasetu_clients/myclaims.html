@@ -22,8 +22,10 @@
             <nav>
                 <a href="dashboard.html" class="nav-link"><i class="fa fa-home"></i> Dashboard</a>
                 <a href="addfood.html" class="nav-link"><i class="fa fa-plus-circle"></i> Add Food</a>
-                <a href="browse.html" class="nav-link"><span class="material-symbols-outlined"></span> Browse
+                <a href="browse.html" class="nav-link"><span class="material-symbols-outlined">food_bank</span> Browse
                     Food</a>
+                <a href="manage-requests.html" class="nav-link"><i class="fa fa-tasks"></i> Manage Requests</a>
+                <a href="myclaims.html" class="nav-link active"><i class="fa fa-inbox"></i> My Claims</a>
                 <a href="notifications.html" class="nav-link"><i class="fa fa-bell"></i> Notifications</a>
                 <a href="profile.html" class="nav-link"><i class="fa fa-user"></i> Profile</a>
                 <a href="#" class="nav-link logout"><i class="fa fa-sign-out-alt"></i> Logout</a>
@@ -113,6 +115,28 @@
                         <input type="hidden" id="ratingScore" value="0" required>
                         <span id="ratingText"
                             style="font-size: 12px; color: #999; margin-top: 8px; display: block;"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="foodQualitySelect">How was the food quality?</label>
+                        <select id="foodQualitySelect" class="styled-select">
+                            <option value="">Not specified</option>
+                            <option value="Excellent">Excellent</option>
+                            <option value="Good">Good</option>
+                            <option value="Average">Average</option>
+                            <option value="Poor">Poor</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="packagingQualitySelect">How was the packaging?</label>
+                        <select id="packagingQualitySelect" class="styled-select">
+                            <option value="">Not specified</option>
+                            <option value="Excellent">Excellent</option>
+                            <option value="Good">Good</option>
+                            <option value="Average">Average</option>
+                            <option value="Poor">Poor</option>
+                        </select>
                     </div>
 
                     <div class="form-group">

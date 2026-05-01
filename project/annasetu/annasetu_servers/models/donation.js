@@ -87,12 +87,25 @@ const donationSchema = new mongoose.Schema({
   // Rating after completion
   rating: {
     score: { type: Number, min: 1, max: 5, default: null },
+    foodQuality: { type: String },
+    packagingQuality: { type: String },
     review: String,
     ratedBy: mongoose.Schema.Types.ObjectId,
     ratedAt: Date
   },
 
   isCompleted: {
+    type: Boolean,
+    default: false
+  },
+
+  // Delivery metadata
+  deliveredAt: {
+    type: Date,
+    default: null
+  },
+
+  reviewSubmitted: {
     type: Boolean,
     default: false
   },

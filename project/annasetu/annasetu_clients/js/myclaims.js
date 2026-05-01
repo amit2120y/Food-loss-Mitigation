@@ -65,13 +65,17 @@ async function loadMyClaims() {
           'Content-Type': 'application/json'
         }
       }, { ttl: 60 * 1000, background: true });
-      console.log(`✓ Fetched ${data.donations.length} claimed donations`);
-      allClaims = data.donations || [];
+
+      // Server previously returned `donations` but newer endpoint returns `claims`.
+      // Accept either shape for compatibility.
+      const list = (data && (data.donations || data.claims)) || [];
+      console.log(`✓ Fetched ${list.length} claimed donations`);
+      allClaims = list;
     } catch (err) {
       console.warn('Failed to fetch claims from network, falling back to cache', err);
       const cached = cacheGet(cacheKey);
       const cachedData = cached ? cached.v : null;
-      allClaims = (cachedData && cachedData.donations) || [];
+      allClaims = (cachedData && (cachedData.donations || cachedData.claims)) || [];
     }
     filteredClaims = [...allClaims];
 
@@ -98,14 +102,14 @@ async function loadMyClaims() {
 function updateStats() {
   const totalClaims = allClaims.length;
   const pendingClaims = allClaims.filter(d => {
-    const claim = d.claims?.[0];
-    return claim && claim.status === 'pending';
+    const claimStatus = (d.claims?.[0]?.status || 'pending').toLowerCase();
+    return claimStatus === 'pending';
   }).length;
   const acceptedClaims = allClaims.filter(d => {
-    const claim = d.claims?.[0];
-    return claim && claim.status === 'accepted';
+    const claimStatus = (d.claims?.[0]?.status || 'pending').toLowerCase();
+    return claimStatus === 'accepted';
   }).length;
-  const completedClaims = allClaims.filter(d => d.status === 'Completed').length;
+  const completedClaims = allClaims.filter(d => String(d.status || '').toLowerCase() === 'completed').length;
 
   document.getElementById('totalClaimsCount').textContent = totalClaims;
   document.getElementById('pendingClaimsCount').textContent = pendingClaims;
@@ -155,7 +159,7 @@ function displayClaims(claims) {
 // Create claim card HTML
 function createClaimCard(donation) {
   const claim = donation.claims?.[0];
-  const claimStatus = claim?.status || 'pending';
+  const claimStatus = (claim?.status || 'pending').toLowerCase();
   const statusColors = {
     'pending': '#ff9800',
     'accepted': '#4caf50',
@@ -171,7 +175,7 @@ function createClaimCard(donation) {
   const donorLocation = donation.userId?.location || donation.location || 'Unknown';
   const cookedDate = donation.cookedTime ? new Date(donation.cookedTime).toLocaleDateString() : 'N/A';
 
-  const isCompleted = donation.status === 'Completed';
+  const isCompleted = String(donation.status || '').toLowerCase() === 'completed';
   const isRated = isCompleted && donation.rating?.score;
 
   let actionButtons = '';
@@ -194,6 +198,9 @@ function createClaimCard(donation) {
       actionButtons = `
         <button class="btn-small btn-complete" onclick="openDetailModal('${donation._id}')">
           <i class="fa fa-info-circle"></i> Details
+        </button>
+        <button class="btn-small btn-delivered" onclick="confirmDeliveryClient('${donation._id}')">
+          <i class="fa fa-check"></i> Food Delivered
         </button>
       `;
     }
@@ -248,7 +255,7 @@ function createClaimCard(donation) {
         </div>
       ` : ''}
 
-      ${donation.status === 'Completed' && donation.rating?.score ? `
+      ${String(donation.status || '').toLowerCase() === 'completed' && donation.rating?.score ? `
         <div class="rating-box">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
             <span style="color: #ffc107;">
@@ -301,9 +308,10 @@ function applyFilters() {
     // Status filter
     let statusMatch = true;
     if (statusFilter) {
-      const claimStatus = donation.claims?.[0]?.status || 'pending';
+      const claimStatus = (donation.claims?.[0]?.status || 'pending').toLowerCase();
+      const donationStatus = String(donation.status || '').toLowerCase();
       if (statusFilter === 'completed') {
-        statusMatch = donation.status === 'Completed';
+        statusMatch = donationStatus === 'completed';
       } else {
         statusMatch = claimStatus === statusFilter;
       }
@@ -333,7 +341,7 @@ function openDetailModal(donationId) {
   if (!donation) return;
 
   const claim = donation.claims?.[0];
-  const claimStatus = claim?.status || 'pending';
+  const claimStatus = (claim?.status || 'pending').toLowerCase();
   const statusColors = {
     'pending': '#ff9800',
     'accepted': '#4caf50',
@@ -412,7 +420,7 @@ function openDetailModal(donationId) {
             <span class="value">${acceptedDate}</span>
           </div>
         ` : ''}
-        ${donation.status === 'Completed' ? `
+        ${String(donation.status || '').toLowerCase() === 'completed' ? `
           <div class="info-row">
             <span class="label">Donation Status:</span>
             <span class="value">✅ Completed</span>
@@ -440,11 +448,11 @@ function setupStarRating() {
       document.getElementById('ratingScore').value = value;
 
       const ratingTexts = {
-        1: '😞 Poor',
-        2: '😐 Fair',
-        3: '🙂 Good',
-        4: '😊 Very Good',
-        5: '😍 Excellent'
+        1: 'Poor',
+        2: 'Fair',
+        3: 'Good',
+        4: 'Very Good',
+        5: 'Excellent'
       };
 
       document.getElementById('ratingText').textContent = ratingTexts[value];
@@ -495,7 +503,7 @@ function openRatingModal(donationId, foodName) {
 
   document.getElementById('donationInfo').innerHTML = `
     <div style="font-weight: 600; font-size: 16px; margin-bottom: 10px;">
-      🍽️ ${foodName}
+      ${foodName}
     </div>
     <p style="font-size: 13px; color: #666; margin: 0;">
       Tell us about your experience with this food donation.
@@ -510,6 +518,10 @@ function openRatingModal(donationId, foodName) {
     s.classList.remove('fas');
     s.classList.add('far');
   });
+  const fq = document.getElementById('foodQualitySelect');
+  const pq = document.getElementById('packagingQualitySelect');
+  if (fq) fq.value = '';
+  if (pq) pq.value = '';
 
   document.getElementById('ratingModal').style.display = 'flex';
 }
@@ -551,7 +563,9 @@ document.addEventListener('submit', async (e) => {
         body: JSON.stringify({
           rating: {
             score,
-            review
+            review,
+            foodQuality: document.getElementById('foodQualitySelect')?.value || '',
+            packagingQuality: document.getElementById('packagingQualitySelect')?.value || ''
           }
         })
       }
@@ -613,6 +627,36 @@ async function unclaimDonation(donationId) {
   } catch (error) {
     console.error('Error unclaiming donation:', error);
     alert(`❌ Error: ${error.message}`);
+  }
+}
+
+// Confirm delivery (client) - calls server endpoint
+async function confirmDeliveryClient(donationId) {
+  if (!confirm('Confirm that you have received the food?')) return;
+
+  const token = localStorage.getItem('token');
+  const btns = document.querySelectorAll(`button.btn-delivered`);
+  btns.forEach(b => b.disabled = true);
+
+  try {
+    const resp = await fetch(`http://localhost:5000/api/donations/${donationId}/confirm-delivery`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.message || `HTTP ${resp.status}`);
+
+    alert('Delivery confirmed. You can now leave feedback.');
+    try { clearCachePrefix('donations_'); } catch (e) { }
+    await loadMyClaims();
+  } catch (err) {
+    console.error('Error confirming delivery:', err);
+    alert('Failed to confirm delivery: ' + (err.message || err));
+  } finally {
+    btns.forEach(b => b.disabled = false);
   }
 }
 

@@ -190,6 +190,13 @@ function displayProfileData(user) {
     if (displayPhoneEl) displayPhoneEl.textContent = user.phone || 'Not provided';
     if (displayLocationEl) displayLocationEl.textContent = user.location || 'Not provided';
 
+    // Email notifications toggle
+    const emailNotifEl = document.getElementById('emailNotifications');
+    if (emailNotifEl) {
+      // default to true if undefined
+      emailNotifEl.checked = typeof user.emailNotifications === 'boolean' ? user.emailNotifications : true;
+    }
+
     // Populate edit form
     const editNameEl = document.getElementById('editName');
     const editPhoneEl = document.getElementById('editPhone');
@@ -235,8 +242,39 @@ function setupEventListeners() {
   if (pwForm) pwForm.addEventListener('submit', changePassword);
 
   // Other buttons
-  const twoFABtn = document.getElementById('enableTwoFABtn');
-  if (twoFABtn) twoFABtn.addEventListener('click', enableTwoFA);
+  // Two-Factor UI removed; no DOM element to bind here.
+  const emailNotifCheckbox = document.getElementById('emailNotifications');
+  if (emailNotifCheckbox) {
+    emailNotifCheckbox.addEventListener('change', async (e) => {
+      const checked = !!e.target.checked;
+      const token = localStorage.getItem('token');
+      if (!token) return alert('Not authenticated');
+      try {
+        const resp = await fetch('http://localhost:5000/api/auth/users/preferences', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ emailNotifications: checked })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+          console.log('Email notification preference updated:', checked);
+          try { currentUser.emailNotifications = checked; localStorage.setItem('user', JSON.stringify(currentUser)); } catch (e) { }
+        } else {
+          console.error('Failed to update preferences:', data);
+          alert('Failed to save preference: ' + (data.message || `HTTP ${resp.status}`));
+          // revert checkbox
+          e.target.checked = !checked;
+        }
+      } catch (err) {
+        console.error('Error updating preferences:', err);
+        alert('Error updating preferences');
+        e.target.checked = !checked;
+      }
+    });
+  }
 
   const deleteBtn = document.getElementById('deleteAccountBtn');
   if (deleteBtn) deleteBtn.addEventListener('click', deleteAccount);
@@ -293,6 +331,10 @@ async function saveProfileChanges(e) {
     }
 
     const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Not authenticated. Please login again.');
+      return;
+    }
 
     // Send to backend
     const response = await fetch('http://localhost:5000/api/auth/users/profile', {
@@ -303,25 +345,33 @@ async function saveProfileChanges(e) {
       },
       body: JSON.stringify({ name, phone, location })
     });
-
-    const data = await response.json();
+    let data, text;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      text = await response.text().catch(() => '');
+      console.error('Failed to parse JSON response for profile update:', parseErr, text);
+    }
 
     if (response.ok) {
+      const updated = (data && data.user) ? data.user : { name, phone, location };
       // Update localStorage with new data
       currentUser = {
         ...currentUser,
-        name: data.user.name,
-        phone: data.user.phone,
-        location: data.user.location
+        name: updated.name,
+        phone: updated.phone,
+        location: updated.location
       };
-      localStorage.setItem('user', JSON.stringify(currentUser));
+      try { localStorage.setItem('user', JSON.stringify(currentUser)); } catch (e) { }
 
       console.log('✓ Profile updated successfully');
       displayProfileData(currentUser);
       toggleEditMode();
       alert('Profile updated successfully!');
     } else {
-      alert('Error updating profile: ' + (data.message || 'Unknown error'));
+      const serverMsg = data?.message || data?.error || text || `HTTP ${response.status}`;
+      console.error('Profile update failed:', response.status, serverMsg, data);
+      alert('Error updating profile: ' + serverMsg);
     }
   } catch (error) {
     console.error('Error saving profile:', error);
@@ -364,6 +414,10 @@ async function changePassword(e) {
     }
 
     const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Not authenticated. Please login again.');
+      return;
+    }
 
     // Send to backend
     const response = await fetch('http://localhost:5000/api/auth/users/change-password', {
@@ -374,15 +428,22 @@ async function changePassword(e) {
       },
       body: JSON.stringify({ currentPassword, newPassword })
     });
-
-    const data = await response.json();
+    let data, text;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      text = await response.text().catch(() => '');
+      console.error('Failed to parse JSON response for change-password:', parseErr, text);
+    }
 
     if (response.ok) {
       console.log('✓ Password changed successfully');
       alert('✅ Password changed successfully!');
       closePasswordModal();
     } else {
-      alert('Error: ' + (data.message || 'Failed to change password'));
+      const serverMsg = data?.message || data?.error || text || `HTTP ${response.status}`;
+      console.error('Change password failed:', response.status, serverMsg, data);
+      alert('Error: ' + serverMsg);
     }
   } catch (error) {
     console.error('Error changing password:', error);
@@ -391,29 +452,60 @@ async function changePassword(e) {
 }
 
 // Enable two-factor authentication
-function enableTwoFA() {
-  alert('⚠️ Two-Factor Authentication feature coming soon!\nWe\'re working on adding this security feature.');
-}
+// Two-Factor Authentication removed from UI; no-op kept intentionally for compatibility
+// (feature removed) 
 
 // Delete account
-function deleteAccount() {
-  const confirm = window.confirm(
-    '⚠️ WARNING: This will permanently delete your account and all associated data.\n\n' +
-    'Are you sure you want to continue?\n\n' +
-    'Type "DELETE" in the next prompt to confirm.'
+// Delete account
+async function deleteAccount() {
+  const proceed = window.confirm(
+    '⚠️ WARNING: This will permanently delete your account and all associated data.\n\nAre you sure you want to continue?'
   );
+  if (!proceed) return;
 
-  if (!confirm) return;
-
-  const confirmation = window.prompt('Type "DELETE" to confirm account deletion:');
+  const confirmation = window.prompt('Type DELETE to confirm account deletion:');
   if (confirmation !== 'DELETE') {
     alert('Account deletion cancelled.');
     return;
   }
 
-  // In future, send to backend
-  alert('⚠️ Account deletion feature coming soon!\nPlease contact support to delete your account.');
-  console.log('Account deletion requested');
+  const deleteBtn = document.getElementById('deleteAccountBtn');
+  if (deleteBtn) deleteBtn.disabled = true;
+
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Not authenticated. Please login again.');
+      if (deleteBtn) deleteBtn.disabled = false;
+      return;
+    }
+
+    const resp = await fetch('http://localhost:5000/api/auth/users', {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    let body = {};
+    try { body = await resp.json(); } catch (e) { }
+
+    if (resp.ok) {
+      // Clear local session and redirect to landing
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      alert('Your account has been deleted. You will be redirected.');
+      window.location.href = 'index.html';
+    } else {
+      alert('Failed to delete account: ' + (body.message || `HTTP ${resp.status}`));
+      if (deleteBtn) deleteBtn.disabled = false;
+    }
+  } catch (err) {
+    console.error('Error deleting account:', err);
+    alert('Error deleting account: ' + (err.message || err));
+    if (deleteBtn) deleteBtn.disabled = false;
+  }
 }
 
 // Logout

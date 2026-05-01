@@ -1,12 +1,35 @@
 const mongoose = require("mongoose");
 
 const connectDB = async (retries = 3) => {
-  const uri = process.env.MONGO_URI;
-  if (!uri || typeof uri !== "string") {
-    console.error(
-      "MongoDB connection error: MONGO_URI is not set. Please add MONGO_URI to your .env file."
+  const rawUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+  if (!rawUri || typeof rawUri !== "string") {
+    console.warn(
+      "MongoDB connection warning: MONGO_URI is not set. Skipping DB connection (development fallback)."
     );
-    throw new Error("MONGO_URI is not defined");
+    // Return early so the app can run in development without a DB configured.
+    return;
+  }
+
+  // Defensive sanitization: trim, strip surrounding quotes, remove BOM, and
+  // attempt to extract a valid mongodb scheme if extra characters were prepended.
+  let uri = rawUri.trim();
+  if ((uri.startsWith('"') && uri.endsWith('"')) || (uri.startsWith("'") && uri.endsWith("'"))) {
+    uri = uri.slice(1, -1);
+  }
+  // Remove common BOM character if present
+  uri = uri.replace(/\uFEFF/g, '').trim();
+
+  // If it doesn't start with the expected scheme, try to salvage by finding
+  // the first occurrence of 'mongodb' and taking the substring from there.
+  if (!/^mongodb(\+srv)?:\/\//i.test(uri)) {
+    const idx = uri.toLowerCase().indexOf('mongodb');
+    if (idx !== -1) {
+      console.warn('MongoDB URI did not start with scheme, extracting substring from first "mongodb"');
+      uri = uri.slice(idx);
+    } else {
+      console.warn('MongoDB connection warning: MONGO_URI does not appear to be a valid MongoDB connection string. Skipping DB connection.');
+      return;
+    }
   }
 
   for (let attempt = 1; attempt <= retries; attempt++) {

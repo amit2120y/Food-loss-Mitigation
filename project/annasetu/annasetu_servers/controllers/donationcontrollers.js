@@ -186,28 +186,47 @@ exports.getUserDonations = async (req, res) => {
     }
 
     // Fetch all donations by this user
-    const donations = await Donation.find({ userId: user._id })
-      .sort({ createdAt: -1 }); // Latest first
+    // Primary: match ObjectId userId
+    let donations = [];
+    try {
+      donations = await Donation.find({ userId: user._id }).sort({ createdAt: -1 }); // Latest first
+    } catch (err) {
+      console.warn('[DB] Primary donations query failed:', err);
+    }
+
+    // If none found, attempt legacy lookups (some older documents may have stored userId as a string
+    // or used email in place of an ObjectId). These fallbacks are defensive and only used when
+    // the primary query returns nothing.
+    if ((!donations || donations.length === 0)) {
+      try {
+        donations = await Donation.find({
+          $or: [
+            { userId: String(user._id) },
+            { userId: user.email }
+          ]
+        }).sort({ createdAt: -1 });
+
+        if (donations && donations.length > 0) {
+          console.log('[LEGACY SEARCH] Found donations by string-id/email for user:', user.email || String(user._id));
+        }
+      } catch (legacyErr) {
+        console.warn('[LEGACY SEARCH] Secondary donations query failed', legacyErr);
+      }
+    }
 
     console.log(`✓ Fetched ${donations.length} donations for user: ${user.email}`);
 
     // Log details for debugging
-    if (donations.length === 0) {
+    if (!donations || donations.length === 0) {
       console.log(`[DEBUG] User ${user._id} has no donations`);
     } else {
-      console.log(`[DEBUG] Donations found:`, donations.map(d => ({
-        id: d._id,
-        userId: d.userId,
-        food: d.food,
-        createdAt: d.createdAt
-      })));
+      console.log(`[DEBUG] Donations found:`, donations.map(d => ({ id: d._id, userId: d.userId, food: d.food, createdAt: d.createdAt })));
     }
-
 
     res.status(200).json({
       message: "Donations retrieved successfully",
       donations: donations,
-      count: donations.length,
+      count: (donations && donations.length) || 0,
       userId: user._id
     });
 

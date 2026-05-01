@@ -16,10 +16,20 @@ router.get('/', async (req, res) => {
                 userId = decoded.id;
             } catch (e) { }
         }
-        // Fetch all notifications, latest first
-        const notifications = await Notification.find({})
+        // If user is authenticated, return notifications relevant to them only
+        // (either targeted to them or created by them). If not authenticated,
+        // return public/broadcast notifications (recipient == null).
+        let query = {};
+        if (userId) {
+            query = { $or: [{ recipient: userId }, { addedBy: userId }] };
+        } else {
+            query = { recipient: null };
+        }
+
+        const notifications = await Notification.find(query)
             .sort({ createdAt: -1 })
             .limit(100);
+
         res.json({ notifications });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch notifications', error: err.message });

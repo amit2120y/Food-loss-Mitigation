@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://annasetu-backend.onrender.com/api/:path*"
+      "destination": "https://annasetu-backend-uz5m.onrender.com/api/:path*"
     }
   ],
   "cleanUrls": true

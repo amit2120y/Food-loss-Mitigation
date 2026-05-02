@@ -49,7 +49,7 @@ async function loadAllRequests() {
 
     let body;
     try {
-      body = await fetchJsonWithCache('http://localhost:5000/api/donations/my-donations', cacheKey, {
+      body = await fetchJsonWithCache('/api/donations/my-donations', cacheKey, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
       }, { ttl: 60 * 1000, background: true });
@@ -283,8 +283,8 @@ async function handleRequestAction(donationId, claimUserId, action) {
   try {
     const token = localStorage.getItem('token');
     const endpoint = action === 'accept'
-      ? `http://localhost:5000/api/donations/${donationId}/claims/${claimUserId}/accept`
-      : `http://localhost:5000/api/donations/${donationId}/claims/${claimUserId}/reject`;
+      ? `/api/donations/${donationId}/claims/${claimUserId}/accept`
+      : `/api/donations/${donationId}/claims/${claimUserId}/reject`;
 
     const response = await fetch(endpoint, {
       method: 'POST',

@@ -58,7 +58,7 @@ async function loadMyClaims() {
 
     let data;
     try {
-      data = await fetchJsonWithCache('http://localhost:5000/api/donations/user/my-claims', cacheKey, {
+      data = await fetchJsonWithCache('/api/donations/user/my-claims', cacheKey, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -553,7 +553,7 @@ document.addEventListener('submit', async (e) => {
     submitBtn.innerHTML = '⏳ Submitting...';
 
     const response = await fetch(
-      `http://localhost:5000/api/donations/${currentRatingDonation}/complete`,
+      `/api/donations/${currentRatingDonation}/complete`,
       {
         method: 'POST',
         headers: {
@@ -604,7 +604,7 @@ async function unclaimDonation(donationId) {
 
   try {
     const response = await fetch(
-      `http://localhost:5000/api/donations/${donationId}/claim`,
+      `/api/donations/${donationId}/claim`,
       {
         method: 'DELETE',
         headers: {
@@ -639,7 +639,7 @@ async function confirmDeliveryClient(donationId) {
   btns.forEach(b => b.disabled = true);
 
   try {
-    const resp = await fetch(`http://localhost:5000/api/donations/${donationId}/confirm-delivery`, {
+    const resp = await fetch(`/api/donations/${donationId}/confirm-delivery`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

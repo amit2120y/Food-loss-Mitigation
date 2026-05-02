@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Try to fetch user stats (non-fatal)
   try {
-    const statsRes = await fetch('http://localhost:5000/api/auth/user-stats', { headers: { Authorization: `Bearer ${token}` } });
+    const statsRes = await fetch('/api/auth/user-stats', { headers: { Authorization: `Bearer ${token}` } });
     if (statsRes.ok) {
       const stats = await statsRes.json();
       const cards = document.querySelectorAll('.stats .card');
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fetchDonationsWithRetry = async () => {
     try {
       const cacheKey = `donations_my_${currentUserId}`;
-      const body = await fetchJsonWithCache('http://localhost:5000/api/donations/my-donations', cacheKey, { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
+      const body = await fetchJsonWithCache('/api/donations/my-donations', cacheKey, { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
       donations = (body && body.donations) || [];
 
       // If donations empty and we haven't retried too many times, retry after delay
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Also load all available donations (others') to compute nearby/requests by others
   let availableDonations = [];
   try {
-    const body2 = await fetchJsonWithCache('http://localhost:5000/api/donations/available', 'donations_available', { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
+    const body2 = await fetchJsonWithCache('/api/donations/available', 'donations_available', { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
     availableDonations = (body2 && body2.donations) || [];
   } catch (err) {
     console.warn('Backend available donations unavailable, will fallback to localStorage', err);
@@ -410,7 +410,7 @@ document.addEventListener('submit', async (e) => {
 
     console.log(`[EDIT] Sending PATCH to /api/donations/${currentEditingDonationId}`, updateData);
 
-    const response = await fetch(`http://localhost:5000/api/donations/${currentEditingDonationId}`, {
+    const response = await fetch(`/api/donations/${currentEditingDonationId}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,

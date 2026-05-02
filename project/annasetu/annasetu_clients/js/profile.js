@@ -96,7 +96,7 @@ async function loadProfileData() {
 
     // Also try to fetch fresh profile data from backend (to get profilePicture)
     try {
-      const resp = await fetch('http://localhost:5000/api/auth/user-stats', {
+      const resp = await fetch('/api/auth/user-stats', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (resp.ok) {
@@ -250,7 +250,7 @@ function setupEventListeners() {
       const token = localStorage.getItem('token');
       if (!token) return alert('Not authenticated');
       try {
-        const resp = await fetch('http://localhost:5000/api/auth/users/preferences', {
+        const resp = await fetch('/api/auth/users/preferences', {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -337,7 +337,7 @@ async function saveProfileChanges(e) {
     }
 
     // Send to backend
-    const response = await fetch('http://localhost:5000/api/auth/users/profile', {
+    const response = await fetch('/api/auth/users/profile', {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -420,7 +420,7 @@ async function changePassword(e) {
     }
 
     // Send to backend
-    const response = await fetch('http://localhost:5000/api/auth/users/change-password', {
+    const response = await fetch('/api/auth/users/change-password', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -480,7 +480,7 @@ async function deleteAccount() {
       return;
     }
 
-    const resp = await fetch('http://localhost:5000/api/auth/users', {
+    const resp = await fetch('/api/auth/users', {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -524,7 +524,7 @@ async function fetchProfileByEmail(email) {
   if (!email) throw new Error('Email is required');
   const token = localStorage.getItem('token');
   if (!token) throw new Error('Not authenticated');
-  const resp = await fetch(`http://localhost:5000/api/auth/users/by-email?email=${encodeURIComponent(email)}`, {
+  const resp = await fetch(`/api/auth/users/by-email?email=${encodeURIComponent(email)}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,

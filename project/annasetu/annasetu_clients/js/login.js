@@ -37,7 +37,7 @@ function handleCredentialResponse(response) {
   const token = response.credential;
 
   // Redirect to the Google auth callback
-  window.location.href = `http://localhost:5000/api/auth/google/callback?token=${token}`;
+  window.location.href = `/api/auth/google/callback?token=${token}`;
 }
 
 // Login Form Handler
@@ -80,11 +80,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       try {
         console.log(
-          "Sending fetch request to: http://localhost:5000/api/auth/login",
+          "Sending fetch request to: /api/auth/login",
         );
 
         // Send login request
-        const response = await fetch("http://localhost:5000/api/auth/login", {
+        const response = await fetch("/api/auth/login", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

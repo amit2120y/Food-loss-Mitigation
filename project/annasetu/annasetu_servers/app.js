@@ -16,15 +16,27 @@ const app = express();
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Configure allowed CORS origins via env var `ALLOWED_ORIGINS` (comma-separated).
+const defaultOrigins = [
+  "http://localhost:5000",
+  "http://localhost:3000",
+  "http://127.0.0.1:5000",
+  "http://127.0.0.1:5500",
+  "http://localhost:5500"
+];
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : defaultOrigins;
+
+console.log('CORS allowed origins:', allowedOrigins);
+
 app.use(cors({
-  origin: [
-    "http://localhost:5000",
-    "http://localhost:3000",
-    "http://127.0.0.1:5000",
-    "http://127.0.0.1:5500",
-    "http://localhost:5500",
-    "*"
-  ],
+  origin: function (origin, callback) {
+    // Allow non-browser tools (e.g., curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf('*') !== -1 || allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-admin-key"]
@@ -46,8 +58,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve frontend static files
-app.use(express.static(path.join(__dirname, "../annasetu_clients")));
+// Optionally serve frontend static files from the backend. Set `SERVE_STATIC=false`
+// in production when deploying the frontend separately (e.g., Vercel).
+const serveStatic = process.env.SERVE_STATIC !== 'false';
+console.log('SERVE_STATIC=', serveStatic);
+if (serveStatic) {
+  app.use(express.static(path.join(__dirname, "../annasetu_clients")));
+}
 
 // API routes
 app.use("/api/auth", require("./routes/authroutes"));

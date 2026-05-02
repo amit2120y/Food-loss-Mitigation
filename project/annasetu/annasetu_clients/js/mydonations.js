@@ -47,7 +47,7 @@ async function loadMyDonations() {
 
         let data;
         try {
-            data = await fetchJsonWithCache('http://localhost:5000/api/donations/my-donations', cacheKey, {
+            data = await fetchJsonWithCache('/api/donations/my-donations', cacheKey, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -304,7 +304,7 @@ async function handleEditSubmit(e) {
             quantity: document.getElementById('editQuantity').value.trim()
         };
 
-        const response = await fetch(`http://localhost:5000/api/donations/${currentEditingDonationId}`, {
+        const response = await fetch(`/api/donations/${currentEditingDonationId}`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -340,7 +340,7 @@ async function deleteDonation(donationId) {
     try {
         const token = localStorage.getItem('token');
 
-        const response = await fetch(`http://localhost:5000/api/donations/${donationId}`, {
+        const response = await fetch(`/api/donations/${donationId}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -420,7 +420,7 @@ async function acceptClaim(donationId, userId) {
     try {
         const token = localStorage.getItem('token');
 
-        const response = await fetch(`http://localhost:5000/api/donations/${donationId}/claims/${userId}/accept`, {
+        const response = await fetch(`/api/donations/${donationId}/claims/${userId}/accept`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -452,7 +452,7 @@ async function rejectClaim(donationId, userId) {
     try {
         const token = localStorage.getItem('token');
 
-        const response = await fetch(`http://localhost:5000/api/donations/${donationId}/claims/${userId}/reject`, {
+        const response = await fetch(`/api/donations/${donationId}/claims/${userId}/reject`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,

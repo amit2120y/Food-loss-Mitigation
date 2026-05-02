@@ -245,8 +245,10 @@ function setupGlobalSocket() {
 
     try {
         const token = localStorage.getItem('token');
-        // Use explicit origin (adjust if your server runs on different host/port)
-        const socket = io('http://localhost:5000', { auth: { token } });
+        // Socket endpoint can be configured at runtime by setting `window.__SOCKET_ENDPOINT__`.
+        // If not set, default to local backend during development (localhost), otherwise connect to same origin.
+        const socketHost = window.__SOCKET_ENDPOINT__ || (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:5000' : undefined);
+        const socket = socketHost ? io(socketHost, { auth: { token } }) : io({ auth: { token } });
         window.__annasetuSocket = socket;
 
         socket.on('connect', () => {

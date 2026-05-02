@@ -169,7 +169,7 @@ async function loadDonations() {
     // is provided by js/common-utils.js
     let data;
     try {
-      data = await fetchJsonWithCache('http://localhost:5000/api/donations/available', cacheKey, {
+      data = await fetchJsonWithCache('/api/donations/available', cacheKey, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -858,7 +858,7 @@ document.addEventListener('submit', async (e) => {
       console.warn('Could not validate beneficiaries vs available quantity:', err);
     }
 
-    const response = await fetch(`http://localhost:5000/api/donations/${selectedDonation.id}/claim`, {
+    const response = await fetch(`/api/donations/${selectedDonation.id}/claim`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

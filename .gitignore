@@ -1,0 +1,9 @@
+# Node
+node_modules/
+
+# Env files
+.env
+.env.*
+
+# Frontend runtime config (local override)
+project/annasetu/annasetu_clients/env.js

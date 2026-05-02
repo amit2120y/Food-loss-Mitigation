@@ -594,7 +594,7 @@
                 donateBtn.disabled = true;
                 donateBtn.textContent = 'Saving...';
 
-                const response = await fetch('http://localhost:5000/api/donations/create', {
+                const response = await fetch('/api/donations/create', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -679,7 +679,7 @@
                 }
 
                 // Send to backend for analysis
-                const response = await fetch('http://localhost:5000/api/auth/analyze-food', {
+                const response = await fetch('/api/auth/analyze-food', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -753,6 +753,7 @@
     <!-- Leaflet.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
+    <script src="/env.js"></script>
     <script src="js/common-utils.js"></script>
 
 </body>

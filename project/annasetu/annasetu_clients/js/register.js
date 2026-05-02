@@ -76,10 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        console.log('Sending fetch request to: http://localhost:5000/api/auth/register');
+        console.log('Sending fetch request to: /api/auth/register');
 
         // Send registration request
-        const response = await fetch('http://localhost:5000/api/auth/register', {
+        const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resendBtn.textContent = 'Resending...';
             resendStatus.textContent = '';
             try {
-              const r = await fetch('http://localhost:5000/api/auth/resend-verification', {
+              const r = await fetch('/api/auth/resend-verification', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })

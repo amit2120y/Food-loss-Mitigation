@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!email) return alert('Please enter your email');
 
         try {
-            const resp = await fetch('http://localhost:5000/api/auth/forgot-password', {
+            const resp = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })

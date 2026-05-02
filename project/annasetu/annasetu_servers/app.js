@@ -24,7 +24,34 @@ const defaultOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500"
 ];
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : defaultOrigins;
+
+const normalizeOrigin = (value) => {
+  if (!value) return "";
+  const trimmed = String(value).trim().replace(/\/+$/, "");
+  try {
+    return new URL(trimmed).origin;
+  } catch (e) {
+    return trimmed;
+  }
+};
+
+const parseOrigins = (value) => {
+  if (!value) return [];
+  return String(value)
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
+};
+
+const extraOrigins = [process.env.FRONTEND_URL, process.env.BACKEND_URL]
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([
+  ...defaultOrigins.map(normalizeOrigin),
+  ...parseOrigins(process.env.ALLOWED_ORIGINS),
+  ...extraOrigins
+]));
 
 console.log('CORS allowed origins:', allowedOrigins);
 
@@ -32,7 +59,8 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow non-browser tools (e.g., curl, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf('*') !== -1 || allowedOrigins.indexOf(origin) !== -1) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (allowedOrigins.indexOf('*') !== -1 || allowedOrigins.indexOf(normalizedOrigin) !== -1) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));

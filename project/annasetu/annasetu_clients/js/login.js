@@ -1,3 +1,23 @@
+// Base API URL helper — uses localhost:5000 during local static host (like Live Server)
+const API_BASE = (function () {
+  const defaultBackend = 'http://localhost:5000';
+  try {
+    if (window.location.protocol === 'file:') return defaultBackend;
+    const port = window.location.port;
+    // If running from a static dev server (e.g. Live Server at :5500), use local backend
+    if (port && port !== '5000') return defaultBackend;
+    return '';
+  } catch (e) { return defaultBackend; }
+})();
+
+// Ensure Google auth link points to backend when serving frontend from a different origin
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const googleLink = document.querySelector('.google-btn-primary');
+    if (googleLink && API_BASE) googleLink.href = `${API_BASE}/api/auth/google`;
+  } catch (e) { /* ignore */ }
+});
+
 // Check for token in URL (from Google OAuth redirect)
 function checkForGoogleToken() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -37,7 +57,7 @@ function handleCredentialResponse(response) {
   const token = response.credential;
 
   // Redirect to the Google auth callback
-  window.location.href = `/api/auth/google/callback?token=${token}`;
+  window.location.href = `${API_BASE}/api/auth/google/callback?token=${token}`;
 }
 
 // Login Form Handler
@@ -84,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
 
         // Send login request
-        const response = await fetch("/api/auth/login", {
+        const response = await fetch(`${API_BASE}/api/auth/login`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

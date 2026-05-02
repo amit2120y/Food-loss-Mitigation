@@ -1,3 +1,22 @@
+// Base API URL helper — uses localhost:5000 during local static host (like Live Server)
+const API_BASE = (function () {
+  const defaultBackend = 'http://localhost:5000';
+  try {
+    if (window.location.protocol === 'file:') return defaultBackend;
+    const port = window.location.port;
+    if (port && port !== '5000') return defaultBackend;
+    return '';
+  } catch (e) { return defaultBackend; }
+})();
+
+// Ensure Google auth link points to backend when serving frontend from a different origin
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const googleLink = document.querySelector('.google-btn-primary');
+    if (googleLink && API_BASE) googleLink.href = `${API_BASE}/api/auth/google`;
+  } catch (e) { /* ignore */ }
+});
+
 // Check for token in URL (from Google OAuth redirect)
 function checkForGoogleToken() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -79,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Sending fetch request to: /api/auth/register');
 
         // Send registration request
-        const response = await fetch('/api/auth/register', {
+        const response = await fetch(`${API_BASE}/api/auth/register`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -117,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resendBtn.textContent = 'Resending...';
             resendStatus.textContent = '';
             try {
-              const r = await fetch('/api/auth/resend-verification', {
+              const r = await fetch(`${API_BASE}/api/auth/resend-verification`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })

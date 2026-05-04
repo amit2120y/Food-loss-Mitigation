@@ -1,5 +1,7 @@
-// Base API URL helper — uses localhost:5000 during local static host (like Live Server)
+// Base API URL helper — respects env.js when present, falls back to localhost for local static hosts.
 const API_BASE = (function () {
+  const configured = String(window.__API_PREFIX__ || window.API_BASE || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
   const defaultBackend = 'http://localhost:5000';
   try {
     if (window.location.protocol === 'file:') return defaultBackend;
@@ -9,11 +11,19 @@ const API_BASE = (function () {
   } catch (e) { return defaultBackend; }
 })();
 
+const apiUrl = (path) => {
+  if (!path) return API_BASE;
+  if (/^https?:\/\//i.test(path)) return path;
+  if (!API_BASE) return path;
+  if (path === '/api' || path.startsWith('/api/')) return API_BASE + path;
+  return path;
+};
+
 // Ensure Google auth link points to backend when serving frontend from a different origin
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const googleLink = document.querySelector('.google-btn-primary');
-    if (googleLink && API_BASE) googleLink.href = `${API_BASE}/api/auth/google`;
+    if (googleLink) googleLink.href = apiUrl('/api/auth/google');
   } catch (e) { /* ignore */ }
 });
 
@@ -98,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Sending fetch request to: /api/auth/register');
 
         // Send registration request
-        const response = await fetch(`${API_BASE}/api/auth/register`, {
+        const response = await fetch(apiUrl('/api/auth/register'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -136,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resendBtn.textContent = 'Resending...';
             resendStatus.textContent = '';
             try {
-              const r = await fetch(`${API_BASE}/api/auth/resend-verification`, {
+              const r = await fetch(apiUrl('/api/auth/resend-verification'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })

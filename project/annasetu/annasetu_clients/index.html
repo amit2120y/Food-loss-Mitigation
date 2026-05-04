@@ -61,7 +61,7 @@
             <div class="feature-card">
                 <h3>Food Donation</h3>
                 <p>Houses, hostels, mess, and marriage halls can donate leftover food.</p>
-            
+
             </div>
             <div class="feature-card">
                 <h3>Human Support</h3>
@@ -93,12 +93,80 @@
         <p>© 2026 अन्न-𝙎𝙚𝙩𝙪</p>
     </footer>
 
+    <script src="env.js"></script>
     <script>
-        // Redirect to dashboard if already logged in
-        document.addEventListener('DOMContentLoaded', () => {
+        function clearAuthSession() {
+            try {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+            } catch (e) {
+                // Ignore storage errors
+            }
+        }
+
+        function setLoggedInUi(userName) {
+            const navLinks = document.querySelectorAll('.navbar .nav-link');
+            const heroButtons = document.querySelectorAll('.hero .buttons a');
+
+            // Update navbar links if they exist
+            if (navLinks.length >= 2) {
+                navLinks[1].textContent = 'Dashboard';
+                navLinks[1].setAttribute('href', 'dashboard.html');
+
+                navLinks[2].textContent = 'Logout';
+                navLinks[2].setAttribute('href', '#');
+                navLinks[2].addEventListener('click', (e) => {
+                    e.preventDefault();
+                    clearAuthSession();
+                    window.location.reload();
+                });
+            }
+
+            // Update hero buttons if they exist
+            if (heroButtons.length >= 2) {
+                heroButtons[0].textContent = 'Go to Dashboard';
+                heroButtons[0].setAttribute('href', 'dashboard.html');
+
+                heroButtons[1].textContent = 'Logout';
+                heroButtons[1].setAttribute('href', '#');
+                heroButtons[1].addEventListener('click', (e) => {
+                    e.preventDefault();
+                    clearAuthSession();
+                    window.location.reload();
+                });
+            }
+
+            if (userName) {
+                const title = document.querySelector('.hero-content h1');
+                if (title) {
+                    title.textContent = `Welcome back, ${userName}`;
+                }
+            }
+        }
+
+        // Validate token and avoid auto-redirect
+        document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
-            if (token) {
-                window.location.href = 'dashboard.html';
+            if (!token) return;
+
+            const url = window.apiUrl ? window.apiUrl('/api/auth/user-stats') : '/api/auth/user-stats';
+            try {
+                const resp = await fetch(url, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (!resp.ok) {
+                    clearAuthSession();
+                    return;
+                }
+
+                const data = await resp.json();
+                if (data && data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    setLoggedInUi(data.user.name);
+                }
+            } catch (err) {
+                console.warn('Token validation failed on home page:', err);
             }
         });
 
@@ -137,7 +205,7 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js\"></script>
 
-    <script src = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" ></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

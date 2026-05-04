@@ -83,6 +83,294 @@ function getGeolocation() {
   });
 }
 
+let selectedDonation = null;
+let availableDonationsCache = [];
+let currentAuthToken = null;
+
+// Cache DOM elements for the claim modal
+const modalCache = {
+  modal: null,
+  form: null,
+  details: null,
+
+  init() {
+    this.modal = document.getElementById('claimModal');
+    this.form = document.getElementById('claimForm');
+    this.details = document.getElementById('claimDetails');
+  },
+
+  show() {
+    if (!this.modal) return;
+    this.modal.classList.remove('hidden');
+    this.modal.style.display = 'flex';
+  },
+
+  hide() {
+    if (!this.modal) return;
+    this.modal.classList.add('hidden');
+    this.modal.style.display = 'none';
+  }
+};
+
+// Parse numeric available quantity from various formats (e.g. "5", "5 kg", "2.5 plates")
+function parseAvailableQuantity(quantity) {
+  if (quantity === null || quantity === undefined) return 1;
+  if (typeof quantity === 'number') return Math.max(1, Math.floor(quantity));
+  const s = String(quantity).trim();
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  if (!m) return 1;
+  const num = parseFloat(m[1]);
+  if (Number.isNaN(num) || num <= 0) return 1;
+  return Math.max(1, Math.floor(num));
+}
+
+function renderReceiverSection(availableList) {
+  availableDonationsCache = Array.isArray(availableList) ? availableList : [];
+
+  const receiverTable = document.querySelector('#receiverSection table');
+  if (!receiverTable) return;
+
+  const rows = receiverTable.querySelectorAll('tr');
+  rows.forEach((r, i) => { if (i > 0) r.remove(); });
+
+  (availableDonationsCache || []).forEach(d => {
+    const tr = document.createElement('tr');
+
+    // Calculate distance if location available
+    let distance = 'N/A';
+    if (userCoordinates && d.coordinates) {
+      try {
+        const dist = calculateDistance(
+          userCoordinates.latitude,
+          userCoordinates.longitude,
+          d.coordinates.latitude,
+          d.coordinates.longitude
+        );
+        distance = getFormattedDistance(dist);
+      } catch (err) {
+        console.warn('❌ Distance calculation error for', d.food, ':', err);
+        distance = 'N/A';
+      }
+    } else if (!userCoordinates) {
+      console.warn('⚠️ User coordinates not available for distance calculation');
+    } else if (!d.coordinates) {
+      console.warn('⚠️ Donation coordinates missing:', d.food);
+    }
+
+    tr.innerHTML = `
+      <td>${d.food || d.foodName || '-'}</td>
+      <td>${d.quantity || d.qty || '-'}</td>
+      <td>${distance}</td>
+      <td><button class="btn-request" onclick="handleClaimDonation('${d._id}', '${(d.food || d.foodName || '').replace(/'/g, "\\'")}')">Request</button></td>
+    `;
+    receiverTable.appendChild(tr);
+  });
+
+  // If no available donations, show message
+  if (!availableDonationsCache || availableDonationsCache.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="4" style="text-align: center; padding: 20px; color: #999;">
+        No available food at the moment. Check back later!
+      </td>
+    `;
+    receiverTable.appendChild(tr);
+  }
+}
+
+async function fetchAvailableDonations(token) {
+  if (!token) return [];
+
+  try {
+    const body2 = await fetchJsonWithCache(
+      apiUrl('/api/donations/available?includeMine=1'),
+      'donations_available',
+      { headers: { Authorization: `Bearer ${token}` } },
+      { ttl: 60 * 1000, background: true }
+    );
+    return (body2 && body2.donations) || [];
+  } catch (err) {
+    console.warn('Backend available donations unavailable, will fallback to localStorage', err);
+    return [];
+  }
+}
+
+// Handle claim food button
+function handleClaimDonation(donationId, foodName) {
+  selectedDonation = {
+    id: donationId,
+    food: foodName
+  };
+
+  if (!modalCache.modal) {
+    modalCache.init();
+  }
+
+  // Populate donation details in modal - with sanitization
+  const sanitizedFood = String(foodName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Find donation object to determine available quantity
+  let availableQty = 1;
+  try {
+    const donation = availableDonationsCache.find(d => String(d._id) === String(donationId) || d._id === donationId);
+    if (donation && donation.quantity !== undefined) {
+      availableQty = parseAvailableQuantity(donation.quantity);
+    }
+  } catch (err) {
+    console.warn('Could not determine available quantity for donation:', donationId, err);
+  }
+
+  if (modalCache.details) {
+    modalCache.details.innerHTML = `
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">
+        🍽️ <strong>${sanitizedFood}</strong>
+      </div>
+      <div style="font-size: 13px; color: #666; margin-bottom: 12px;">
+        Are you sure you want to claim this food? The donor will receive a notification about your request.
+      </div>
+      <div style="font-size: 13px; color: #444; margin-bottom: 6px;">
+        <strong>Available quantity:</strong> ${availableQty}
+      </div>
+    `;
+  }
+
+  // Set up beneficiaries input with max enforced and inline warning
+  const beneficiariesInput = document.getElementById('claimBeneficiaries');
+  if (beneficiariesInput) {
+    beneficiariesInput.min = 1;
+    beneficiariesInput.max = availableQty;
+    if (!beneficiariesInput.value) beneficiariesInput.value = 1;
+
+    // Create or reuse inline warning element
+    let warnEl = document.getElementById('claimQuantityWarning');
+    if (!warnEl) {
+      warnEl = document.createElement('div');
+      warnEl.id = 'claimQuantityWarning';
+      warnEl.style.color = '#b71c1c';
+      warnEl.style.fontSize = '13px';
+      warnEl.style.marginTop = '6px';
+      beneficiariesInput.parentNode.appendChild(warnEl);
+    }
+    warnEl.textContent = '';
+
+    // Attach input handler to enforce max and show warning
+    beneficiariesInput.oninput = () => {
+      const val = parseInt(beneficiariesInput.value) || 0;
+      if (val > availableQty) {
+        beneficiariesInput.value = availableQty;
+        warnEl.textContent = `Quantity exceeded — reduced to maximum available (${availableQty}).`;
+      } else {
+        warnEl.textContent = '';
+      }
+    };
+  }
+
+  // Show modal
+  modalCache.show();
+
+  console.log(`Claim modal opened for donation: ${donationId}`);
+}
+
+// Close modal
+function closeModal() {
+  modalCache.hide();
+  selectedDonation = null;
+}
+
+// Claim location map helpers
+let claimLocationMap = null;
+let claimLocationMarker = null;
+
+function setupClaimLocationButton() {
+  const claimLocationBtn = document.getElementById('claimCurrentLocationBtn');
+  if (!claimLocationBtn) return;
+
+  claimLocationBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    const addressField = document.getElementById('claimAddress');
+    const statusEl = document.getElementById('claimLocationStatus');
+    const mapDiv = document.getElementById('claimLocationMap');
+    const btn = claimLocationBtn;
+
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Getting location...';
+    if (statusEl) statusEl.textContent = 'Attempting quick location...';
+
+    function showOnMap(lat, lon, accuracy) {
+      window.claimCoordinates = { latitude: lat, longitude: lon };
+
+      if (mapDiv) mapDiv.style.display = 'block';
+
+      if (typeof L !== 'undefined') {
+        try {
+          if (!claimLocationMap) {
+            claimLocationMap = L.map('claimLocationMap').setView([lat, lon], 18);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors',
+              maxZoom: 19
+            }).addTo(claimLocationMap);
+          } else {
+            claimLocationMap.setView([lat, lon], 18);
+          }
+
+          claimLocationMap.eachLayer(layer => {
+            if (layer instanceof L.Circle) claimLocationMap.removeLayer(layer);
+          });
+
+          if (claimLocationMarker) {
+            try { claimLocationMap.removeLayer(claimLocationMarker); } catch (err) { }
+          }
+
+          L.circle([lat, lon], {
+            radius: accuracy || 50,
+            color: '#007bff',
+            fill: true,
+            fillColor: '#007bff',
+            fillOpacity: 0.1,
+            weight: 2,
+            dashArray: '5, 5'
+          }).addTo(claimLocationMap);
+
+          claimLocationMarker = L.marker([lat, lon], { draggable: true, title: 'Drag to adjust location' }).addTo(claimLocationMap);
+          claimLocationMarker.on('dragend', function () {
+            const latLng = claimLocationMarker.getLatLng();
+            window.claimCoordinates = { latitude: latLng.lat, longitude: latLng.lng };
+            if (addressField) {
+              addressField.value = `Lat: ${latLng.lat.toFixed(6)}, Lng: ${latLng.lng.toFixed(6)}`;
+            }
+          });
+
+        } catch (err) {
+          console.warn('Failed to render claim location map', err);
+        }
+      }
+
+      if (addressField) {
+        addressField.value = `Lat: ${lat.toFixed(6)}, Lng: ${lon.toFixed(6)}`;
+      }
+
+      if (statusEl) statusEl.textContent = accuracy ? `Accuracy: ${Math.round(accuracy)}m` : 'Location detected';
+      btn.disabled = false;
+      btn.textContent = 'Get Current Location';
+    }
+
+    navigator.geolocation.getCurrentPosition((pos) => {
+      showOnMap(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+    }, (err) => {
+      console.warn('Geolocation failed', err);
+      if (statusEl) statusEl.textContent = 'Unable to get your location. Please enter address manually.';
+      btn.disabled = false;
+      btn.textContent = 'Get Current Location';
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== Dashboard Page Loaded ===');
 
@@ -141,6 +429,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  currentAuthToken = token;
+  modalCache.init();
+  setupClaimLocationButton();
+
   // Update welcome
   const pageTitle = document.getElementById('pageTitle');
   if (pageTitle) pageTitle.textContent = `Welcome Back, ${user.name || 'User'}!`;
@@ -152,7 +444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Try to fetch user stats (non-fatal)
   try {
-    const statsRes = await fetch('/api/auth/user-stats', { headers: { Authorization: `Bearer ${token}` } });
+    const statsRes = await fetch(apiUrl('/api/auth/user-stats'), { headers: { Authorization: `Bearer ${token}` } });
     if (statsRes.ok) {
       const stats = await statsRes.json();
       const cards = document.querySelectorAll('.stats .card');
@@ -179,7 +471,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fetchDonationsWithRetry = async () => {
     try {
       const cacheKey = `donations_my_${currentUserId}`;
-      const body = await fetchJsonWithCache('/api/donations/my-donations', cacheKey, { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
+      const body = await fetchJsonWithCache(apiUrl('/api/donations/my-donations'), cacheKey, { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
       donations = (body && body.donations) || [];
 
       // If donations empty and we haven't retried too many times, retry after delay
@@ -197,16 +489,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     return donations;
   };
 
-  donations = await fetchDonationsWithRetry();
+  const availablePromise = fetchAvailableDonations(token);
+  const donationsPromise = fetchDonationsWithRetry();
 
-  // Also load all available donations (others') to compute nearby/requests by others
-  let availableDonations = [];
-  try {
-    const body2 = await fetchJsonWithCache('/api/donations/available', 'donations_available', { headers: { Authorization: `Bearer ${token}` } }, { ttl: 60 * 1000, background: true });
-    availableDonations = (body2 && body2.donations) || [];
-  } catch (err) {
-    console.warn('Backend available donations unavailable, will fallback to localStorage', err);
-  }
+  // Render receiver section as soon as available donations load
+  let availableDonations = await availablePromise;
+  renderReceiverSection(availableDonations);
+
+  donations = await donationsPromise;
 
   if (!donations.length) {
     try {
@@ -222,6 +512,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn('Failed to read local donations', err);
     }
   }
+
+  // Refresh receiver section if localStorage fallback populated it
+  renderReceiverSection(availableDonations);
 
   // Render donations
   const table = document.querySelector('#donorSection table');
@@ -240,56 +533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Render available food from other users (Receiver section)
-  const receiverTable = document.querySelector('#receiverSection table');
-  if (receiverTable) {
-    const rows = receiverTable.querySelectorAll('tr');
-    rows.forEach((r, i) => { if (i > 0) r.remove(); });
-
-    availableDonations.forEach(d => {
-      const tr = document.createElement('tr');
-
-      // Calculate distance if location available
-      let distance = 'N/A';
-      if (userCoordinates && d.coordinates) {
-        try {
-          const dist = calculateDistance(
-            userCoordinates.latitude,
-            userCoordinates.longitude,
-            d.coordinates.latitude,
-            d.coordinates.longitude
-          );
-          distance = getFormattedDistance(dist);
-        } catch (err) {
-          console.warn('❌ Distance calculation error for', d.food, ':', err);
-          distance = 'N/A';
-        }
-      } else if (!userCoordinates) {
-        console.warn('⚠️ User coordinates not available for distance calculation');
-      } else if (!d.coordinates) {
-        console.warn('⚠️ Donation coordinates missing:', d.food);
-      }
-
-      tr.innerHTML = `
-        <td>${d.food || d.foodName || '-'}</td>
-        <td>${d.quantity || d.qty || '-'}</td>
-        <td>${distance}</td>
-        <td><button class="btn-request" onclick="handleClaimDonation('${d._id}', '${(d.food || d.foodName || '').replace(/'/g, "\\'")}')">Request</button></td>
-      `;
-      receiverTable.appendChild(tr);
-    });
-
-    // If no available donations, show message
-    if (availableDonations.length === 0) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td colspan="4" style="text-align: center; padding: 20px; color: #999;">
-          No available food from other users at the moment. Check back later!
-        </td>
-      `;
-      receiverTable.appendChild(tr);
-    }
-  }
+  // Receiver section is rendered earlier to avoid waiting on donation retries
 
   // Compute dashboard counts and update stat cards
   try {
@@ -357,6 +601,113 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== Dashboard Fully Loaded ===')
 });
 
+// Handle claim form submission (Receiver section)
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'claimForm') return;
+
+  e.preventDefault();
+
+  if (!selectedDonation) {
+    alert('No donation selected');
+    return;
+  }
+
+  const token = currentAuthToken || localStorage.getItem('token');
+  if (!token) {
+    alert('Not authenticated');
+    return;
+  }
+
+  try {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting Request...';
+    }
+
+    // Collect form data
+    const claimData = {
+      purpose: document.getElementById('claimPurpose').value,
+      beneficiaries: parseInt(document.getElementById('claimBeneficiaries').value, 10),
+      address: document.getElementById('claimAddress').value,
+      preferredPickupTime: document.getElementById('claimPickupTime').value || null,
+      notes: document.getElementById('claimNotes').value
+    };
+
+    if (!claimData.beneficiaries || Number.isNaN(claimData.beneficiaries)) {
+      claimData.beneficiaries = 1;
+    }
+
+    // Ensure beneficiaries do not exceed available quantity (defensive check)
+    try {
+      const donation = availableDonationsCache.find(d => String(d._id) === String(selectedDonation.id));
+      const availableQty = donation && donation.quantity !== undefined ? parseAvailableQuantity(donation.quantity) : 1;
+      if (claimData.beneficiaries > availableQty) {
+        claimData.beneficiaries = availableQty;
+        alert(`Requested quantity exceeded available amount — reduced to ${availableQty}.`);
+      }
+    } catch (err) {
+      console.warn('Could not validate beneficiaries vs available quantity:', err);
+    }
+
+    const response = await fetch(apiUrl(`/api/donations/${selectedDonation.id}/claim`), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(claimData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[CLAIM-SUBMIT] Error response:', errorData);
+      throw new Error(errorData.message || 'Failed to submit claim request');
+    }
+
+    const data = await response.json();
+
+    // Show server-side warning if present (server may adjust beneficiaries)
+    if (data.warning) {
+      alert(data.warning);
+    }
+
+    alert(`Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
+    closeModal();
+
+    // Invalidate donation caches so pages show fresh data
+    try {
+      clearCachePrefix('donations_');
+    } catch (err) { console.warn('Failed to clear donation caches', err); }
+
+    // Refresh available donations list on dashboard
+    try {
+      const refreshed = await fetchAvailableDonations(token);
+      renderReceiverSection(refreshed);
+    } catch (refreshErr) {
+      console.warn('Failed to refresh available donations after claim', refreshErr);
+    }
+
+  } catch (error) {
+    console.error('Error submitting claim request:', error);
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa fa-check"></i> Submit Claim Request';
+    }
+  }
+});
+
+// Close claim modal when clicking outside
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('claimModal');
+  if (modal && e.target === modal) {
+    closeModal();
+  }
+});
+
 
 
 // Edit Modal Functions
@@ -410,7 +761,7 @@ document.addEventListener('submit', async (e) => {
 
     console.log(`[EDIT] Sending PATCH to /api/donations/${currentEditingDonationId}`, updateData);
 
-    const response = await fetch(`/api/donations/${currentEditingDonationId}`, {
+    const response = await fetch(apiUrl(`/api/donations/${currentEditingDonationId}`), {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -266,15 +266,21 @@ exports.getAllDonations = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Get only "Available" donations, excluding the current user's donations
-    const donations = await Donation.find({
-      status: "Available",
-      userId: { $ne: user._id }  // Exclude current user's donations
-    })
+    // Get only "Available" donations. Optionally include the current user's donations
+    // when includeMine=1|true is passed in query.
+    const includeMineParam = String(req.query.includeMine || '').toLowerCase();
+    const includeMine = includeMineParam === '1' || includeMineParam === 'true';
+
+    const query = { status: "Available" };
+    if (!includeMine) {
+      query.userId = { $ne: user._id };
+    }
+
+    const donations = await Donation.find(query)
       .populate("userId", "name email phone")
       .sort({ createdAt: -1 });
 
-    console.log(`✓ Fetched ${donations.length} available donations for user ${user.email}`);
+    console.log(`✓ Fetched ${donations.length} available donations for user ${user.email} (includeMine=${includeMine})`);
 
     res.status(200).json({
       message: "All available donations retrieved",

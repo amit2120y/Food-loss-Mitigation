@@ -5,6 +5,9 @@ let selectedDonation = null;
 let currentFilter = 'all';
 let searchTimeout = null; // For debouncing search
 let userCoordinates = null; // Store user's current coordinates for distance calculation
+let selectedDistanceKm = 'all';
+let selectedCity = '';
+let locationMode = 'nearby';
 
 // Promise to wait for geolocation
 function getGeolocation() {
@@ -129,6 +132,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup filter buttons
   setupFilterButtons();
 
+  // Setup location filter toggle button
+  setupLocationFilterToggle();
+
+  // Setup location filter mode (nearby vs city)
+  setupLocationFilterMode();
+
   // Setup map toggle button
   setupMapToggle();
 
@@ -143,6 +152,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       handleSearch();
     }, 300); // Wait 300ms after user stops typing
   });
+
+  // Setup distance and city filters
+  const distanceSelect = document.getElementById('distanceFilter');
+  if (distanceSelect) {
+    distanceSelect.addEventListener('change', () => {
+      selectedDistanceKm = distanceSelect.value;
+      applyFiltersAndSearch();
+    });
+  }
+
+  const cityInput = document.getElementById('cityFilter');
+  if (cityInput) {
+    cityInput.addEventListener('input', () => {
+      selectedCity = cityInput.value.trim();
+      applyFiltersAndSearch();
+    });
+  }
 
   console.log('=== Browse Page Ready ===');
 });
@@ -194,6 +220,8 @@ async function loadDonations() {
 
     allDonations = data.donations || [];
     filteredDonations = [...allDonations];
+
+    buildLocationOptions();
 
     // Hide loading, show results
     loadingEl.classList.add('hidden');
@@ -530,31 +558,89 @@ function setupFilterButtons() {
   });
 }
 
+function setupLocationFilterToggle() {
+  const toggleBtn = document.getElementById('filterToggleBtn');
+  const panel = document.getElementById('locationFilters');
+  if (!toggleBtn || !panel) return;
+
+  toggleBtn.addEventListener('click', () => {
+    const isCollapsed = panel.classList.contains('collapsed');
+    panel.classList.toggle('collapsed');
+    toggleBtn.setAttribute('aria-expanded', String(isCollapsed));
+  });
+}
+
+function setupLocationFilterMode() {
+  const radios = document.querySelectorAll('input[name="locationMode"]');
+  const distanceWrap = document.getElementById('distanceFilterWrap');
+  const cityWrap = document.getElementById('cityFilterWrap');
+  if (!radios.length || !distanceWrap || !cityWrap) return;
+
+  const updateMode = (mode) => {
+    locationMode = mode;
+    if (mode === 'city') {
+      distanceWrap.classList.add('hidden');
+      cityWrap.classList.remove('hidden');
+      selectedDistanceKm = 'all';
+    } else {
+      cityWrap.classList.add('hidden');
+      distanceWrap.classList.remove('hidden');
+      selectedCity = '';
+      const cityInput = document.getElementById('cityFilter');
+      if (cityInput) cityInput.value = '';
+    }
+    applyFiltersAndSearch();
+  };
+
+  radios.forEach(radio => {
+    radio.addEventListener('change', () => updateMode(radio.value));
+  });
+  updateMode(locationMode);
+}
+
 // Handle search input with debouncing
 function handleSearch() {
-  const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+  const searchTerm = getSearchTerm();
   applyFiltersAndSearch(searchTerm);
 }
 
 // Apply both filters and search with optimized logic
-function applyFiltersAndSearch(searchTerm = '') {
+function applyFiltersAndSearch(searchTerm) {
   const startTime = performance.now();
+  const resolvedSearch = searchTerm === undefined ? getSearchTerm() : searchTerm;
+  const normalizedSearch = String(resolvedSearch || '').toLowerCase().trim();
+  const hasCityFilter = locationMode === 'city' && Boolean(selectedCity && selectedCity.trim());
+  const hasDistanceFilter = locationMode === 'nearby' && selectedDistanceKm !== 'all';
 
   // Early exit if search term is empty and filter is 'all'
-  if (!searchTerm && currentFilter === 'all') {
+  if (!normalizedSearch && currentFilter === 'all' && !hasCityFilter && !hasDistanceFilter) {
     filteredDonations = [...allDonations];
     console.log(`⚡ No filters applied - showing all ${allDonations.length} donations`);
     displayDonations(filteredDonations);
     return;
   }
 
-  const searchLower = searchTerm.toLowerCase().trim();
+  const searchLower = normalizedSearch;
+  const cityLower = (selectedCity || '').toLowerCase().trim();
+  const distanceLimit = hasDistanceFilter ? parseFloat(selectedDistanceKm) : null;
 
   // Pre-compile filter function for reuse
   const filterFunc = (donation) => {
     // Filter by type first (faster check)
     if (currentFilter !== 'all' && donation.foodType !== currentFilter) {
       return false;
+    }
+
+    // Filter by city/town if provided
+    if (locationMode === 'city' && cityLower) {
+      const locText = `${donation.location || ''} ${donation.userId?.location || ''}`.toLowerCase();
+      if (!locText.includes(cityLower)) return false;
+    }
+
+    // Filter by distance if selected
+    if (locationMode === 'nearby' && distanceLimit !== null) {
+      const distanceKm = getDonationDistanceKm(donation);
+      if (distanceKm === null || distanceKm > distanceLimit) return false;
     }
 
     // If no search term, we're done
@@ -581,6 +667,40 @@ function applyFiltersAndSearch(searchTerm = '') {
   const filterTime = performance.now() - startTime;
   console.log(`⚡ Filtered ${currentFilter !== 'all' ? `by ${currentFilter}` : ''} ${searchLower ? `+ search "${searchLower}"` : ''} → ${filteredDonations.length}/${allDonations.length} donations in ${filterTime.toFixed(2)}ms`);
   displayDonations(filteredDonations);
+}
+
+// Build location options from available donations
+function buildLocationOptions() {
+  const datalist = document.getElementById('cityOptions');
+  if (!datalist) return;
+
+  const unique = new Set();
+  allDonations.forEach(donation => {
+    const loc = (donation.location || donation.userId?.location || '').trim();
+    if (loc) unique.add(loc);
+  });
+
+  datalist.innerHTML = '';
+  Array.from(unique).sort().forEach(loc => {
+    const opt = document.createElement('option');
+    opt.value = loc;
+    datalist.appendChild(opt);
+  });
+}
+
+// Get numeric distance for a donation (km)
+function getDonationDistanceKm(donation) {
+  if (!userCoordinates || !donation.coordinates) return null;
+  const lat = donation.coordinates.latitude;
+  const lon = donation.coordinates.longitude;
+  if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+  const distance = calculateDistance(userCoordinates.latitude, userCoordinates.longitude, lat, lon);
+  return isNaN(distance) ? null : distance;
+}
+
+function getSearchTerm() {
+  const input = document.getElementById('searchInput');
+  return input ? input.value.toLowerCase().trim() : '';
 }
 
 // Cache DOM elements for better performance

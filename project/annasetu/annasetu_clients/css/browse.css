@@ -14,15 +14,25 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+.filters-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
 .search-box {
   display: flex;
   align-items: center;
   background: #f4f6f8;
   border-radius: 10px;
   padding: 12px 15px;
-  margin-bottom: 15px;
   border: 2px solid #e8e8e8;
   transition: all 0.3s ease;
+  flex: 1;
+  min-width: 240px;
 }
 
 .search-box:focus-within {
@@ -43,6 +53,91 @@
   flex: 1;
   font-size: 14px;
   font-family: inherit;
+}
+
+.filter-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 2px solid #2e7d32;
+  background: white;
+  color: #2e7d32;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.filter-toggle-btn:hover {
+  background: #2e7d32;
+  color: white;
+}
+
+.location-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.location-filters.collapsed {
+  display: none;
+}
+
+.location-filter-mode {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.location-filter-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f4f6f8;
+  border: 1px solid #e8e8e8;
+  padding: 8px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.location-filter-mode input {
+  accent-color: #2e7d32;
+}
+
+.location-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.location-filter-item label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.location-filter-item select,
+.location-filter-item input {
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: #f4f6f8;
+  transition: all 0.3s ease;
+}
+
+.location-filter-item select:focus,
+.location-filter-item input:focus {
+  outline: none;
+  border-color: #2e7d32;
+  background: white;
 }
 
 .filter-buttons {

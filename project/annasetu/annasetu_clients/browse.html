@@ -70,9 +70,45 @@
 
             <!-- FILTERS & SEARCH -->
             <div class="filters-section">
-                <div class="search-box">
-                    <i class="fa fa-search"></i>
-                    <input type="text" id="searchInput" placeholder="Search by food name or location...">
+                <div class="filters-header">
+                    <div class="search-box">
+                        <i class="fa fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Search by food name or location...">
+                    </div>
+                    <button class="filter-toggle-btn" id="filterToggleBtn" type="button" aria-expanded="false">
+                        <i class="fa fa-sliders"></i>
+                        Filters
+                    </button>
+                </div>
+
+                <div class="location-filters collapsed" id="locationFilters">
+                    <div class="location-filter-mode">
+                        <span>Show food by:</span>
+                        <label>
+                            <input type="radio" name="locationMode" value="nearby" checked>
+                            Nearby distance
+                        </label>
+                        <label>
+                            <input type="radio" name="locationMode" value="city">
+                            Town/City
+                        </label>
+                    </div>
+
+                    <div class="location-filter-item" id="distanceFilterWrap">
+                        <label for="distanceFilter">Distance</label>
+                        <select id="distanceFilter">
+                            <option value="2">Less than 2 km</option>
+                            <option value="5">Less than 5 km</option>
+                            <option value="8">Less than 8 km</option>
+                            <option value="10">Less than 10 km</option>
+                            <option value="all">Any distance</option>
+                        </select>
+                    </div>
+                    <div class="location-filter-item hidden" id="cityFilterWrap">
+                        <label for="cityFilter">Town/City</label>
+                        <input type="text" id="cityFilter" list="cityOptions" placeholder="Type town or city">
+                        <datalist id="cityOptions"></datalist>
+                    </div>
                 </div>
 
                 <div class="filter-buttons">

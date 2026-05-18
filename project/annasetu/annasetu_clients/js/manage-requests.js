@@ -4,7 +4,7 @@ let filteredRequests = [];
 let currentFilter = 'all';
 let currentPage = 1;
 const itemsPerPage = 12;
-
+ 
 document.addEventListener('DOMContentLoaded', async () => {
   // Check authentication
   const token = localStorage.getItem('token');

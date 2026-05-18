@@ -1,4 +1,9 @@
-const apiKey = 'AIzaSyDIfd-BH6MUSQu3F6GfwIUPBbh0EnuRDJg';
+const apiKey = process.env.GEMINI_API_KEY;
+
+if (!apiKey) {
+    console.error('GEMINI_API_KEY is not set. Provide it via environment variables.');
+    process.exit(1);
+}
 
 async function listModels() {
     try {

@@ -1177,6 +1177,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.claimCoordinates = { latitude: lat, longitude: lon };
 
         try {
+          // Make the container visible before Leaflet measures it.
+          mapDiv.style.display = 'block';
+
           if (!claimLocationMap) {
             claimLocationMap = L.map('claimLocationMap').setView([lat, lon], 18);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1219,7 +1222,14 @@ document.addEventListener('DOMContentLoaded', () => {
             updateClaimLocationAddress(latLng.lat, latLng.lng);
           });
 
-          mapDiv.style.display = 'block';
+          // Force Leaflet to recalculate layout after the modal/container is shown.
+          setTimeout(() => {
+            try {
+              if (claimLocationMap) {
+                claimLocationMap.invalidateSize(true);
+              }
+            } catch (e) { }
+          }, 0);
         } catch (err) {
           console.warn('Map update failed:', err);
         }
@@ -1343,7 +1353,36 @@ async function updateClaimLocationAddress(latitude, longitude) {
   console.log(`🔍 Geocoding coordinates for claim: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
 
   try {
-    // Try OpenStreetMap Nominatim first (use jsonv2 and addressdetails)
+    // Use BigDataCloud first because it is CORS-friendly in the browser.
+    console.log('🔁 Trying BigDataCloud reverse geocode first...');
+    const bigUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
+    let bigData = null;
+    try {
+      const bigResp = await fetch(bigUrl);
+      if (bigResp.ok) {
+        bigData = await bigResp.json();
+      } else {
+        console.warn('BigDataCloud response not OK:', bigResp.status);
+      }
+    } catch (berr) {
+      console.warn('BigDataCloud lookup failed:', berr);
+    }
+
+    if (bigData) {
+      const bigParts = [];
+      if (bigData.locality) bigParts.push(bigData.locality);
+      if (bigData.principalSubdivision) bigParts.push(bigData.principalSubdivision);
+      if (bigData.countryName) bigParts.push(bigData.countryName);
+      if (bigParts.length > 0) {
+        const full = bigParts.join(', ');
+        console.log('✅ BigDataCloud address:', full);
+        addressField.value = full;
+        statusEl.textContent = '✓ Address loaded (approx)';
+        return;
+      }
+    }
+
+    // Fallback: OpenStreetMap Nominatim if BigDataCloud did not return a usable address.
     console.log('📍 Trying OpenStreetMap Nominatim reverse geocode...');
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=en`;
     let nominatimData = null;
@@ -1359,7 +1398,6 @@ async function updateClaimLocationAddress(latitude, longitude) {
     }
 
     if (nominatimData) {
-      // Prefer detailed assembly from address parts
       const addr = nominatimData.address || {};
       const parts = [];
       if (addr.house_number) parts.push(addr.house_number);
@@ -1383,38 +1421,12 @@ async function updateClaimLocationAddress(latitude, longitude) {
         return;
       }
 
-      // Fallback to display_name if parts missing
       if (nominatimData.display_name) {
         console.log('✅ Nominatim display_name:', nominatimData.display_name);
         addressField.value = nominatimData.display_name;
         statusEl.textContent = '✓ Address loaded from your location';
         return;
       }
-    }
-
-    // If Nominatim failed or returned no useful fields, try BigDataCloud reverse geocode (coarse but reliable CORS)
-    try {
-      console.log('🔁 Falling back to BigDataCloud reverse geocode...');
-      const bigUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
-      const bigResp = await fetch(bigUrl);
-      if (bigResp.ok) {
-        const bigData = await bigResp.json();
-        const bigParts = [];
-        if (bigData.locality) bigParts.push(bigData.locality);
-        if (bigData.principalSubdivision) bigParts.push(bigData.principalSubdivision);
-        if (bigData.countryName) bigParts.push(bigData.countryName);
-        if (bigParts.length > 0) {
-          const full = bigParts.join(', ');
-          console.log('✅ BigDataCloud address:', full);
-          addressField.value = full;
-          statusEl.textContent = '✓ Address loaded (approx)';
-          return;
-        }
-      } else {
-        console.warn('BigDataCloud response not OK:', bigResp.status);
-      }
-    } catch (berr) {
-      console.warn('BigDataCloud lookup failed:', berr);
     }
 
     console.warn('⚠️ All reverse geocoding attempts failed. Using coordinates as fallback.');

@@ -4,6 +4,18 @@ let isEditingProfile = false;
 let isPageInitialized = false;
 let initStartTime = 0;
 
+function getUserStatsCacheKey() {
+  const user = currentUser || JSON.parse(localStorage.getItem('user') || 'null');
+  const userId = user?.id || user?._id || user?.email || 'unknown';
+  return `auth_user_stats_${userId}`;
+}
+
+function invalidateUserStatsCache() {
+  try {
+    cacheDelete(getUserStatsCacheKey());
+  } catch (e) { }
+}
+
 // Initialize on page load with better error handling
 document.addEventListener('DOMContentLoaded', async () => {
   if (isPageInitialized) {
@@ -96,11 +108,10 @@ async function loadProfileData() {
 
     // Also try to fetch fresh profile data from backend (to get profilePicture)
     try {
-      const resp = await fetch('/api/auth/user-stats', {
+      const body = await fetchJsonWithCache(apiUrl('/api/auth/user-stats'), getUserStatsCacheKey(), {
         headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (resp.ok) {
-        const body = await resp.json();
+      }, { ttl: 5 * 60 * 1000, background: true });
+      if (body) {
         const serverUser = body.user;
         if (serverUser) {
           // Prefer server-provided profilePicture when available
@@ -262,6 +273,7 @@ function setupEventListeners() {
         if (resp.ok) {
           console.log('Email notification preference updated:', checked);
           try { currentUser.emailNotifications = checked; localStorage.setItem('user', JSON.stringify(currentUser)); } catch (e) { }
+          invalidateUserStatsCache();
         } else {
           console.error('Failed to update preferences:', data);
           alert('Failed to save preference: ' + (data.message || `HTTP ${resp.status}`));
@@ -363,6 +375,7 @@ async function saveProfileChanges(e) {
         location: updated.location
       };
       try { localStorage.setItem('user', JSON.stringify(currentUser)); } catch (e) { }
+      invalidateUserStatsCache();
 
       console.log('✓ Profile updated successfully');
       displayProfileData(currentUser);
@@ -493,6 +506,7 @@ async function deleteAccount() {
 
     if (resp.ok) {
       // Clear local session and redirect to landing
+      invalidateUserStatsCache();
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       alert('Your account has been deleted. You will be redirected.');

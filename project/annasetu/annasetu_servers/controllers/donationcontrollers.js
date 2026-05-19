@@ -274,9 +274,6 @@ exports.getAllDonations = async (req, res) => {
     const query = { status: "Available" };
     if (!includeMine) {
       const excludeUserIds = [user._id, String(user._id)];
-      if (user.email) {
-        excludeUserIds.push(user.email);
-      }
       query.userId = { $nin: excludeUserIds };
     }
 

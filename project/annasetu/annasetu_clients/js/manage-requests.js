@@ -49,17 +49,10 @@ async function loadAllRequests() {
 
     let body;
     try {
-      const response = await fetch(apiUrl('/api/donations/my-donations'), {
+      body = await fetchJsonWithCache(apiUrl('/api/donations/my-donations'), cacheKey, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Network request failed: ${response.status}`);
-      }
-
-      body = await response.json();
-      try { cacheDelete(cacheKey); } catch (e) { }
+      }, { ttl: 60 * 1000, background: true });
     } catch (err) {
       console.warn('Failed to fetch donations for requests from network, falling back to cache', err);
       const cached = cacheGet(cacheKey);

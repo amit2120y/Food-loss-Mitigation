@@ -2,6 +2,7 @@
 let isPageInitialized = false;
 let initStartTime = 0;
 let notifications = [];
+let notificationsCacheKey = null;
 
 // Initialize on page load with better error handling
 
@@ -156,10 +157,14 @@ document.addEventListener('visibilitychange', () => {
 async function loadNotifications() {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch('/api/notifications', {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.id || user?._id || user?.email || 'unknown';
+    notificationsCacheKey = `notifications_${userId}`;
+
+    const data = await fetchJsonWithCache(apiUrl('/api/notifications'), notificationsCacheKey, {
       headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await response.json();
+    }, { ttl: 30 * 1000, background: true });
+
     notifications = (data.notifications || []).map(n => ({
       message: n.message,
       title: n.title || 'Notification',
@@ -193,6 +198,23 @@ function setupSocketNotifications() {
       addedBy: notif.addedBy
     });
     displayNotifications();
+
+    try {
+      if (notificationsCacheKey) {
+        cacheSet(notificationsCacheKey, {
+          notifications: notifications.map(n => ({
+            _id: n.notificationId,
+            message: n.message,
+            title: n.title,
+            createdAt: n.timestamp,
+            foodId: n.foodId,
+            addedBy: n.addedBy
+          }))
+        });
+      }
+    } catch (cacheErr) {
+      console.warn('Failed to update notifications cache', cacheErr);
+    }
 
     // Sync unseen count from localStorage (global handler updated it)
     unseenNotificationCount = parseInt(localStorage.getItem('unseenNotifications') || '0', 10) || 0;

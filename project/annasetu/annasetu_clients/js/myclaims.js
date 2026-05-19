@@ -58,26 +58,19 @@ async function loadMyClaims() {
 
     let data;
     try {
-      const response = await fetch(apiUrl('/api/donations/user/my-claims'), {
+      data = await fetchJsonWithCache(apiUrl('/api/donations/user/my-claims'), cacheKey, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Network request failed: ${response.status}`);
-      }
-
-      data = await response.json();
+      }, { ttl: 60 * 1000, background: true });
 
       // Server previously returned `donations` but newer endpoint returns `claims`.
       // Accept either shape for compatibility.
       const list = (data && (data.donations || data.claims)) || [];
       console.log(`✓ Fetched ${list.length} claimed donations`);
       allClaims = list;
-      try { cacheDelete(cacheKey); } catch (e) { }
     } catch (err) {
       console.warn('Failed to fetch claims from network, falling back to cache', err);
       const cached = cacheGet(cacheKey);

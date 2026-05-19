@@ -444,9 +444,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Try to fetch user stats (non-fatal)
   try {
-    const statsRes = await fetch(apiUrl('/api/auth/user-stats'), { headers: { Authorization: `Bearer ${token}` } });
-    if (statsRes.ok) {
-      const stats = await statsRes.json();
+    const userStatsCacheKey = `auth_user_stats_${currentUserId}`;
+    const stats = await fetchJsonWithCache(apiUrl('/api/auth/user-stats'), userStatsCacheKey, {
+      headers: { Authorization: `Bearer ${token}` }
+    }, { ttl: 5 * 60 * 1000, background: true });
+    if (stats) {
       const cards = document.querySelectorAll('.stats .card');
       // Only set the donations count from the server stats if available.
       // We avoid writing the second card here because the dashboard's second card

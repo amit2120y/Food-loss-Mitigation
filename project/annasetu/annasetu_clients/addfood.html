@@ -623,9 +623,10 @@
                     try {
                         const createdDonation = data.donation || data;
                         const curUser = JSON.parse(localStorage.getItem('user') || '{}');
-                        const curUserId = curUser?.id || curUser?._id || curUser?.email || 'unknown';
+                        const curUserId = curUser?.id || curUser?._id || null;
+                        const curUserEmail = curUser?.email || null;
                         if (typeof updateDonationCachesAfterChange === 'function') {
-                            updateDonationCachesAfterChange(createdDonation, curUserId);
+                            updateDonationCachesAfterChange(createdDonation, curUserId, curUserEmail);
                         }
                     } catch (e) { console.warn('Failed to update caches after create', e); }
 

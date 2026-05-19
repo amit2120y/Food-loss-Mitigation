@@ -146,8 +146,17 @@ async function fetchJsonWithCache(url, cacheKey, fetchOptions = {}, opts = {}) {
  * Update donation-related caches after creating/updating a donation.
  * Appends/prepends the supplied donation object to available + user caches when present.
  */
-function updateDonationCachesAfterChange(donation, userId) {
+function updateDonationCachesAfterChange(donation, userId, userEmail) {
     try {
+        const userIdStr = userId !== undefined && userId !== null ? String(userId) : null;
+        const userEmailStr = userEmail ? String(userEmail).toLowerCase() : null;
+        const donorIdRaw = donation?.userId?._id || donation?.userId?.id || donation?.userId || null;
+        const donorIdStr = donorIdRaw ? String(donorIdRaw) : null;
+        const donorEmailRaw = donation?.userId?.email || donation?.userEmail || null;
+        const donorEmailStr = donorEmailRaw ? String(donorEmailRaw).toLowerCase() : null;
+        const isOwnDonation = (userIdStr && donorIdStr && userIdStr === donorIdStr) ||
+            (userEmailStr && donorEmailStr && userEmailStr === donorEmailStr);
+
         // Update user's cache
         const myKey = `donations_my_${userId}`;
         const myCached = cacheGet(myKey);
@@ -162,9 +171,23 @@ function updateDonationCachesAfterChange(donation, userId) {
         const availKey = 'donations_available';
         const availCached = cacheGet(availKey);
         if (availCached && Array.isArray(availCached.v.donations)) {
-            const newArr = [donation].concat(availCached.v.donations);
-            cacheSet(availKey, { donations: newArr });
-        } else {
+            const filtered = availCached.v.donations.filter((d) => {
+                const oidRaw = d?.userId?._id || d?.userId?.id || d?.userId || null;
+                const oid = oidRaw ? String(oidRaw) : null;
+                const oemailRaw = d?.userId?.email || d?.userEmail || null;
+                const oemail = oemailRaw ? String(oemailRaw).toLowerCase() : null;
+
+                if (userIdStr && oid && oid === userIdStr) return false;
+                if (userEmailStr && oemail && oemail === userEmailStr) return false;
+                return true;
+            });
+
+            if (!isOwnDonation) {
+                filtered.unshift(donation);
+            }
+
+            cacheSet(availKey, { donations: filtered });
+        } else if (!isOwnDonation) {
             cacheSet(availKey, { donations: [donation] });
         }
     } catch (e) {

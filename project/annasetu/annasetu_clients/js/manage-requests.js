@@ -4,7 +4,7 @@ let filteredRequests = [];
 let currentFilter = 'all';
 let currentPage = 1;
 const itemsPerPage = 12;
- 
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Check authentication
   const token = localStorage.getItem('token');
@@ -49,10 +49,17 @@ async function loadAllRequests() {
 
     let body;
     try {
-      body = await fetchJsonWithCache('/api/donations/my-donations', cacheKey, {
+      const response = await fetch(apiUrl('/api/donations/my-donations'), {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
-      }, { ttl: 60 * 1000, background: true });
+      });
+
+      if (!response.ok) {
+        throw new Error(`Network request failed: ${response.status}`);
+      }
+
+      body = await response.json();
+      try { cacheDelete(cacheKey); } catch (e) { }
     } catch (err) {
       console.warn('Failed to fetch donations for requests from network, falling back to cache', err);
       const cached = cacheGet(cacheKey);
@@ -299,12 +306,40 @@ async function handleRequestAction(donationId, claimUserId, action) {
       throw new Error(error.message || `Failed to ${action} claim`);
     }
 
+    // Update local state immediately for a snappy UI
+    const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+    applyLocalRequestUpdate(donationId, claimUserId, newStatus);
+
+    // Clear cached donations so the next refresh pulls the latest state
+    try {
+      const userObj = JSON.parse(localStorage.getItem('user') || 'null');
+      const currentUserId = userObj?.id || userObj?._id || userObj?.email || 'unknown';
+      cacheDelete(`donations_my_${currentUserId}`);
+    } catch (e) { }
+
+    closeRequestModal();
     alert(`✅ Claim ${action}ed successfully!`);
-    await loadAllRequests();
 
   } catch (error) {
     console.error(`[ERROR] ${action}ing claim:`, error);
     alert(`❌ Error: ${error.message}`);
+  }
+}
+
+function applyLocalRequestUpdate(donationId, claimUserId, newStatus) {
+  let updated = false;
+
+  allRequests = allRequests.map((request) => {
+    if (String(request.donationId) === String(donationId) && String(request.userId) === String(claimUserId)) {
+      updated = true;
+      return { ...request, status: newStatus };
+    }
+    return request;
+  });
+
+  if (updated) {
+    filterRequests(currentFilter);
+    updateStatistics();
   }
 }
 

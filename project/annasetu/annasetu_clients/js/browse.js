@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // Load all available donations from server
-async function loadDonations() {
+async function loadDonations(opts = {}) {
   try {
     const token = localStorage.getItem('token');
     console.log('Fetching available donations...');
@@ -193,44 +193,103 @@ async function loadDonations() {
 
     // Use cached data (stale-while-revalidate) to speed up UI; fetchJsonWithCache
     // is provided by js/common-utils.js
+    const forceNetwork = opts && opts.forceNetwork === true;
+
     let data;
+    const availableUrl = apiUrl('/api/donations/available');
     try {
-      const availableUrl = apiUrl('/api/donations/available');
-      data = await fetchJsonWithCache(availableUrl, cacheKey, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      if (forceNetwork) {
+        const response = await fetch(availableUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Network request failed: ${response.status}`);
         }
-      }, { ttl: 60 * 1000, background: true });
+
+        data = await response.json();
+        try { cacheDelete(cacheKey); } catch (e) { }
+      } else {
+        data = await fetchJsonWithCache(availableUrl, cacheKey, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }, { ttl: 60 * 1000, background: true });
+      }
     } catch (err) {
       console.warn('Network fetch failed for available donations, will fallback to cache if present', err);
       const cached = cacheGet(cacheKey);
       data = cached ? cached.v : null;
+
+      // Retry once by swapping localhost/127.0.0.1 if running locally.
+      if (!data) {
+        let fallbackUrl = '';
+        if (availableUrl.includes('localhost')) {
+          fallbackUrl = availableUrl.replace('localhost', '127.0.0.1');
+        } else if (availableUrl.includes('127.0.0.1')) {
+          fallbackUrl = availableUrl.replace('127.0.0.1', 'localhost');
+        }
+
+        if (fallbackUrl) {
+          try {
+            const retryResponse = await fetch(fallbackUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (retryResponse.ok) {
+              data = await retryResponse.json();
+              try { cacheDelete(cacheKey); } catch (e) { }
+            }
+          } catch (retryErr) {
+            console.warn('Fallback fetch failed for available donations', retryErr);
+          }
+        }
+      }
     }
 
     const loadTime = performance.now() - startTime;
 
     if (!data || !Array.isArray(data.donations)) {
-      throw new Error('Failed to fetch donations or invalid response');
+      throw new Error('Failed to fetch donations. Please make sure the backend is running.');
     }
 
     console.log(`✓ Fetched ${data.donations.length} available donations in ${loadTime.toFixed(2)}ms`);
     console.log('Sample donation:', data.donations[0]); // Debug: see what data looks like
 
     const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
-    const currentUserId = currentUser?._id ? String(currentUser._id) : null;
-    const currentUserEmail = currentUser?.email ? String(currentUser.email) : null;
+    const currentUserIdRaw = currentUser?._id || currentUser?.id || null;
+    const currentUserId = currentUserIdRaw ? String(currentUserIdRaw) : null;
+    const currentUserEmail = currentUser?.email ? String(currentUser.email).toLowerCase() : null;
 
-    allDonations = (data.donations || []).filter((donation) => {
-      const ownerId = donation?.userId?._id ? String(donation.userId._id) : (donation?.userId ? String(donation.userId) : null);
-      const ownerEmail = donation?.userId?.email ? String(donation.userId.email) : null;
+    const originalDonations = data.donations || [];
+    const filtered = originalDonations.filter((donation) => {
+      const ownerIdRaw = donation?.userId?._id || donation?.userId?.id || donation?.userId || null;
+      const ownerId = ownerIdRaw ? String(ownerIdRaw) : null;
+      const ownerEmailRaw = donation?.userId?.email || donation?.userEmail || null;
+      const ownerEmail = ownerEmailRaw ? String(ownerEmailRaw).toLowerCase() : null;
 
-      if (currentUserId && ownerId === currentUserId) return false;
-      if (currentUserEmail && ownerEmail && ownerEmail.toLowerCase() === currentUserEmail.toLowerCase()) return false;
+      if (currentUserId && ownerId && ownerId === currentUserId) return false;
+      if (currentUserEmail && ownerEmail && ownerEmail === currentUserEmail) return false;
       return true;
     });
+    allDonations = filtered;
     filteredDonations = [...allDonations];
+
+    if (filtered.length !== originalDonations.length) {
+      try {
+        cacheSet(cacheKey, { ...data, donations: filtered, count: filtered.length });
+      } catch (e) { }
+    }
 
     buildLocationOptions();
 
@@ -1012,6 +1071,8 @@ document.addEventListener('submit', async (e) => {
       alert(data.warning);
     }
 
+    applyLocalClaimUpdate(selectedDonation.id, data.claim, claimData, user);
+
     alert(`Claim Request Submitted!\n\nFood: ${selectedDonation.food}\nBeneficiaries: ${claimData.beneficiaries}\nPurpose: ${claimData.purpose}\n\nThe donor will review your request shortly.`);
     closeModal();
 
@@ -1020,7 +1081,7 @@ document.addEventListener('submit', async (e) => {
       clearCachePrefix('donations_');
     } catch (e) { console.warn('Failed to clear donation caches', e); }
     try {
-      await loadDonations();
+      await loadDonations({ forceNetwork: true });
     } catch (reloadError) {
       // Don't throw - reload is not critical
     }
@@ -1036,6 +1097,45 @@ document.addEventListener('submit', async (e) => {
     }
   }
 });
+
+function applyLocalClaimUpdate(donationId, claimFromServer, claimPayload, user) {
+  try {
+    if (!donationId) return;
+
+    const userIdRaw = user?.id || user?._id || user?.email || null;
+    const userId = userIdRaw ? String(userIdRaw) : null;
+    const normalizedClaim = {
+      status: 'pending',
+      userId: claimFromServer?.userId || userId,
+      userName: claimFromServer?.userName || user?.name || 'Anonymous',
+      userEmail: claimFromServer?.userEmail || user?.email || '',
+      userPhone: claimFromServer?.userPhone || user?.phone || '',
+      purpose: claimFromServer?.purpose || claimPayload?.purpose || '',
+      beneficiaries: claimFromServer?.beneficiaries || claimPayload?.beneficiaries || 0,
+      notes: claimFromServer?.notes || claimPayload?.notes || '',
+      address: claimFromServer?.address || claimPayload?.address || '',
+      preferredPickupTime: claimFromServer?.preferredPickupTime || claimPayload?.preferredPickupTime || '',
+      claimedAt: claimFromServer?.claimedAt || new Date().toISOString()
+    };
+
+    const idx = allDonations.findIndex(d => String(d._id) === String(donationId));
+    if (idx === -1) return;
+
+    const donation = allDonations[idx];
+    const existingClaims = Array.isArray(donation.claims) ? donation.claims : [];
+    const filteredClaims = existingClaims.filter(c => String(c.userId) !== String(normalizedClaim.userId));
+    filteredClaims.push(normalizedClaim);
+
+    allDonations[idx] = { ...donation, claims: filteredClaims };
+    applyFiltersAndSearch(getSearchTerm());
+
+    try {
+      cacheSet('donations_available', { donations: allDonations, count: allDonations.length });
+    } catch (e) { }
+  } catch (err) {
+    console.warn('applyLocalClaimUpdate failed', err);
+  }
+}
 
 // Close modal when clicking outside
 document.addEventListener('click', (e) => {

@@ -600,58 +600,86 @@ ANALYSIS RULES:
 - Cattle is UNSAFE if contains allergens (onion, garlic, chocolate, nuts, peanut)
 - Always explain the food safety implications in recommendation`;
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                }),
+        const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash"];
+        let lastError = null;
+
+        for (const model of modelsToTry) {
+            try {
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                        }),
+                    }
+                );
+
+                const rawBody = await response.text();
+                if (!response.ok) {
+                    let detail = rawBody;
+                    try {
+                        detail = JSON.stringify(JSON.parse(rawBody));
+                    } catch (parseError) {
+                        // keep raw body as-is when it's not JSON
+                    }
+
+                    const err = new Error(`API ${response.status} ${response.statusText} - ${detail}`);
+                    err.status = response.status;
+                    throw err;
+                }
+
+                const data = JSON.parse(rawBody);
+                const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!responseText) throw new Error("No response text");
+
+                console.log("Raw Gemini Response:", responseText); // Log what Gemini returned
+
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error("No JSON found");
+
+                const analysis = JSON.parse(jsonMatch[0]);
+                console.log("Parsed Gemini JSON:", analysis); // Log parsed response
+
+                // Validate and normalize the scores
+                let human = Math.max(0, Math.min(100, analysis.human || 50));
+                let cattle = Math.max(0, Math.min(100, analysis.cattle || 30));
+                let fertilizer = Math.max(0, Math.min(100, analysis.fertilizer || 20));
+
+                // If food is spoiled (high fertilizer), ensure human is very low
+                if (fertilizer > 70 && human > 20) {
+                    human = Math.max(5, human * 0.3); // Reduce human score significantly
+                    cattle = Math.min(cattle, 30);
+                }
+
+                // If food is fresh (low fertilizer), ensure human is high
+                if (fertilizer < 20 && human < 70) {
+                    human = Math.max(human, 75);
+                }
+
+                console.log(`Gemini scores - Human: ${human}%, Cattle: ${cattle}%, Fertilizer: ${fertilizer}%`);
+
+                return {
+                    human: Math.round(human),
+                    cattle: Math.round(cattle),
+                    fertilizer: Math.round(fertilizer),
+                    recommendation: analysis.recommendation || "Analysis complete",
+                    confidence: "high"
+                };
+            } catch (error) {
+                lastError = error;
+                if (error && (error.status === 400 || error.status === 404)) {
+                    console.log(`Gemini model ${model} failed (${error.message}). Trying fallback if available...`);
+                    continue;
+                }
+                throw error;
             }
-        );
-
-        if (!response.ok) {
-            throw new Error(`API ${response.status}`);
         }
 
-        const data = await response.json();
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!responseText) throw new Error("No response text");
-
-        console.log("Raw Gemini Response:", responseText); // Log what Gemini returned
-
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No JSON found");
-
-        const analysis = JSON.parse(jsonMatch[0]);
-        console.log("Parsed Gemini JSON:", analysis); // Log parsed response
-
-        // Validate and normalize the scores
-        let human = Math.max(0, Math.min(100, analysis.human || 50));
-        let cattle = Math.max(0, Math.min(100, analysis.cattle || 30));
-        let fertilizer = Math.max(0, Math.min(100, analysis.fertilizer || 20));
-
-        // If food is spoiled (high fertilizer), ensure human is very low
-        if (fertilizer > 70 && human > 20) {
-            human = Math.max(5, human * 0.3); // Reduce human score significantly
-            cattle = Math.min(cattle, 30);
+        if (lastError) {
+            throw lastError;
         }
-
-        // If food is fresh (low fertilizer), ensure human is high
-        if (fertilizer < 20 && human < 70) {
-            human = Math.max(human, 75);
-        }
-
-        console.log(`Gemini scores - Human: ${human}%, Cattle: ${cattle}%, Fertilizer: ${fertilizer}%`);
-
-        return {
-            human: Math.round(human),
-            cattle: Math.round(cattle),
-            fertilizer: Math.round(fertilizer),
-            recommendation: analysis.recommendation || "Analysis complete",
-            confidence: "high"
-        };
 
     } catch (error) {
         console.log("Gemini API unavailable:", error.message);

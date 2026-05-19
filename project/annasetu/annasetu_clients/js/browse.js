@@ -195,7 +195,7 @@ async function loadDonations() {
     // is provided by js/common-utils.js
     let data;
     try {
-      const availableUrl = apiUrl('/api/donations/available?includeMine=1');
+      const availableUrl = apiUrl('/api/donations/available');
       data = await fetchJsonWithCache(availableUrl, cacheKey, {
         method: 'GET',
         headers: {
@@ -218,7 +218,18 @@ async function loadDonations() {
     console.log(`✓ Fetched ${data.donations.length} available donations in ${loadTime.toFixed(2)}ms`);
     console.log('Sample donation:', data.donations[0]); // Debug: see what data looks like
 
-    allDonations = data.donations || [];
+    const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+    const currentUserId = currentUser?._id ? String(currentUser._id) : null;
+    const currentUserEmail = currentUser?.email ? String(currentUser.email) : null;
+
+    allDonations = (data.donations || []).filter((donation) => {
+      const ownerId = donation?.userId?._id ? String(donation.userId._id) : (donation?.userId ? String(donation.userId) : null);
+      const ownerEmail = donation?.userId?.email ? String(donation.userId.email) : null;
+
+      if (currentUserId && ownerId === currentUserId) return false;
+      if (currentUserEmail && ownerEmail && ownerEmail.toLowerCase() === currentUserEmail.toLowerCase()) return false;
+      return true;
+    });
     filteredDonations = [...allDonations];
 
     buildLocationOptions();
